@@ -52,7 +52,6 @@ axon install vision/resnet50@2.0.0    # Specific version
 
 # List installed (active pathways)
 axon list
-axon list --namespace vision
 
 # Update model (strengthen the pathway)
 axon update vision/resnet50
@@ -101,9 +100,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to Axon.
 
 ## Project Status
 
-🚧 **Work in Progress** - This is the initial implementation phase.
+✅ **MVP Complete** - Core functionality implemented and tested.
 
-Current focus: Foundation and core types (Week 1-2 of MVP roadmap)
+The project is in active development. See [MVP_STATUS.md](MVP_STATUS.md) for detailed status.
 
 ## License
 
@@ -111,10 +110,10 @@ Apache 2.0
 
 ## Links
 
-- **Documentation**: https://axon.mlos.io/docs (coming soon)
-- **Registry**: https://registry.axon.mlos.io (coming soon)
-- **Discord**: https://discord.gg/mlos
+- **Repository**: https://github.com/mlOS-foundation/axon
 - **Organization**: https://github.com/mlOS-foundation
+- **Issues**: https://github.com/mlOS-foundation/axon/issues
+- **Discussions**: https://github.com/mlOS-foundation/axon/discussions
 
 ---
 

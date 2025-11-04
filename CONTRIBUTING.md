@@ -133,12 +133,13 @@ Examples:
 
 ## Project Roadmap
 
-See the [MVP Implementation Plan](../roadmaps/axon/axon-mvp-implementation-plan.md) for the current development roadmap.
+See [MVP_STATUS.md](MVP_STATUS.md) for the current project status and completed features.
 
 Current focus areas:
-- Week 1-2: Core types and configuration
-- Week 3-4: Cache manager and registry client
-- Week 5-8: CLI commands implementation
+- ✅ Core types and configuration (Complete)
+- ✅ Cache manager and registry client (Complete)
+- ✅ CLI commands implementation (Complete)
+- 🔄 Registry integration and package extraction (In Progress)
 
 ## Questions?
 

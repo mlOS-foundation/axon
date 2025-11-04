@@ -76,18 +76,15 @@ All CI checks are configured and passing:
 
 ### Branch Protection
 
-**Note**: Branch protection rules require GitHub Pro for private repositories. 
+✅ **Branch protection enabled** for `main` branch:
+- Require pull request reviews (1 approval minimum)
+- Require status checks to pass: Test, Lint, Vet, Build
+- Require branches to be up to date before merging
+- Include administrators in protection rules
+- Force pushes disabled
+- Branch deletion disabled
 
-**Manual Setup Required** (if GitHub Pro is available):
-1. Go to repository Settings → Branches
-2. Add rule for `main` branch
-3. Enable:
-   - Require pull request reviews (1 approval)
-   - Require status checks to pass (Test, Lint, Vet, Build)
-   - Require branches to be up to date
-   - Include administrators
-   - Do not allow force pushes
-   - Do not allow deletions
+All changes to `main` must now go through pull requests with passing CI checks.
 
 ### Next Steps (Post-MVP)
 
