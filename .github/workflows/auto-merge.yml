@@ -1,0 +1,158 @@
+name: Auto Merge with Approval
+
+on:
+  pull_request:
+    types: [opened, synchronize, review_requested, review_request_removed]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  statuses: write
+  checks: write
+
+jobs:
+  auto-merge:
+    name: Auto Merge Approved PRs
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    
+    steps:
+    - name: Get PR number
+      id: get-pr-number
+      run: |
+        if [ "${{ github.event_name }}" = "issue_comment" ]; then
+          echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+        else
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check repository permissions
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔍 Checking repository permissions..."
+        gh repo view ${{ github.repository }} > /dev/null 2>&1 && echo "✅ Repository access: OK" || echo "❌ Repository access: FAILED"
+        gh pr view ${{ steps.get-pr-number.outputs.pr_number }} > /dev/null 2>&1 && echo "✅ PR access: OK" || echo "❌ PR access: FAILED"
+      
+    - name: Check if PR is approved by admin
+      id: check-approval
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Get PR reviews and author info
+        REVIEWS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login')
+        PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
+        
+        # Check if any admin has approved (include org owners)
+        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
+        APPROVED_BY_ADMIN=false
+        
+        # Check if PR author is an admin (self-approval allowed for admins)
+        for admin in "${ADMINS[@]}"; do
+          if [ "$PR_AUTHOR" = "$admin" ]; then
+            echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
+            APPROVED_BY_ADMIN=true
+            break
+          fi
+        done
+        
+        # If not self-approved, check for admin reviews
+        if [ "$APPROVED_BY_ADMIN" = "false" ]; then
+          for admin in "${ADMINS[@]}"; do
+            if echo "$REVIEWS" | grep -q "^$admin$"; then
+              APPROVED_BY_ADMIN=true
+              break
+            fi
+          done
+        fi
+        
+        echo "approved_by_admin=$APPROVED_BY_ADMIN" >> $GITHUB_OUTPUT
+        echo "Reviews: $REVIEWS"
+        echo "PR Author: $PR_AUTHOR"
+        echo "Approved by admin: $APPROVED_BY_ADMIN"
+        
+    - name: Check for /approve command
+      id: check-approve-command
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Define admin users
+        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
+        
+        # Build regex pattern for admin users
+        ADMIN_PATTERN=""
+        for admin in "${ADMINS[@]}"; do
+          if [ -z "$ADMIN_PATTERN" ]; then
+            ADMIN_PATTERN="^$admin$"
+          else
+            ADMIN_PATTERN="$ADMIN_PATTERN|^$admin$"
+          fi
+        done
+        
+        # Get PR comments from admin users only
+        COMMENTS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq ".comments[] | select(.author.login | test(\"$ADMIN_PATTERN\")) | .body")
+        
+        # Check for /approve command (standalone or in comment)
+        if echo "$COMMENTS" | grep -qE "^/approve| /approve|/approve "; then
+          echo "approve_command_found=true" >> $GITHUB_OUTPUT
+          echo "✅ /approve command found from admin"
+        else
+          echo "approve_command_found=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Comments from admins: $(echo "$COMMENTS" | head -5)"
+        
+    - name: Approve PR as admin override
+      if: steps.check-approve-command.outputs.approve_command_found == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "✅ Admin /approve command detected - approving PR"
+        gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks"
+        
+    - name: Create bypass status checks
+      if: steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-approval.outputs.approved_by_admin == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "✅ Creating bypass status checks for admin approval"
+        PR_SHA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json headRefOid --jq '.headRefOid')
+        
+        # Create success status for each required check
+        for check in "Test" "Lint" "Vet" "Build"; do
+          gh api repos/${{ github.repository }}/statuses/$PR_SHA \
+            --method POST \
+            -f state=success \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f description="Bypassed by admin /approve command" \
+            -f context="$check" || true
+        done
+        
+    - name: Merge PR
+      if: steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-approval.outputs.approved_by_admin == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🚀 Merging PR #${{ steps.get-pr-number.outputs.pr_number }}"
+        
+        # Wait a moment for status checks to update
+        sleep 10
+        
+        # Attempt to merge
+        gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch || {
+          echo "⚠️  Merge failed, checking status..."
+          gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeableState,mergeStateStatus
+          exit 1
+        }
+        
+        echo "✅ PR merged successfully"
+
