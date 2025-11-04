@@ -139,17 +139,18 @@ jobs:
         echo "Comments from admins: $(echo "$COMMENTS" | head -5 || echo "None")"
         
     - name: Approve PR as admin override
+      id: approve-pr
       if: steps.check-approve-command.outputs.approve_command_found == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "✅ Admin /approve command detected - approving PR"
         # Approve the PR
-        gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" || {
+        if gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" 2>&1; then
+          echo "✅ PR approved successfully"
+        else
           echo "⚠️  Approval may already exist, continuing..."
-        }
-        # Mark as approved for next step
-        echo "approved_by_admin=true" >> $GITHUB_OUTPUT
+        fi
         
     - name: Create bypass status checks
       id: create-status
@@ -197,8 +198,8 @@ jobs:
         MERGE_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeableState,mergeStateStatus --jq '{mergeable: .mergeable, state: .mergeableState, status: .mergeStateStatus}')
         echo "Merge info: $MERGE_INFO"
         
-        # Attempt to merge with auto flag to bypass checks
-        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin 2>&1; then
+        # Attempt to merge (status checks should allow it now)
+        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch 2>&1; then
           echo "✅ PR merged successfully"
         else
           MERGE_ERROR=$?
