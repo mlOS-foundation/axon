@@ -7,10 +7,7 @@ import (
 	"strings"
 
 	"github.com/mlOS-foundation/axon/internal/cache"
-	"github.com/mlOS-foundation/axon/internal/config"
-	"github.com/mlOS-foundation/axon/internal/manifest"
 	"github.com/mlOS-foundation/axon/internal/registry"
-	"github.com/mlOS-foundation/axon/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -372,12 +369,12 @@ func cacheCmd() *cobra.Command {
 		},
 	})
 
-	cmd.AddCommand(&cobra.Command{
+		cmd.AddCommand(&cobra.Command{
 		Use:   "clean",
 		Short: "Clean cache",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Cleaning myelin cache...")
-			cacheMgr := cache.NewManager(cfg.CacheDir)
+			_ = cache.NewManager(cfg.CacheDir)
 			
 			// TODO: Implement cleanup policy
 			fmt.Println("(Cache cleanup not yet implemented)")
