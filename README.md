@@ -52,7 +52,6 @@ axon install vision/resnet50@2.0.0    # Specific version
 
 # List installed (active pathways)
 axon list
-axon list --namespace vision
 
 # Update model (strengthen the pathway)
 axon update vision/resnet50
@@ -101,20 +100,35 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to Axon.
 
 ## Project Status
 
-🚧 **Work in Progress** - This is the initial implementation phase.
+✅ **MVP Complete** - Core functionality implemented and tested.
 
-Current focus: Foundation and core types (Week 1-2 of MVP roadmap)
+The project is in active development. See [MVP_STATUS.md](MVP_STATUS.md) for detailed status.
 
 ## License
 
-Apache 2.0
+GNU Affero General Public License v3.0 (AGPL-3.0)
+
+Copyright (C) 2025 MLOS Foundation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ## Links
 
-- **Documentation**: https://axon.mlos.io/docs (coming soon)
-- **Registry**: https://registry.axon.mlos.io (coming soon)
-- **Discord**: https://discord.gg/mlos
+- **Repository**: https://github.com/mlOS-foundation/axon
 - **Organization**: https://github.com/mlOS-foundation
+- **Issues**: https://github.com/mlOS-foundation/axon/issues
+- **Discussions**: https://github.com/mlOS-foundation/axon/discussions
 
 ---
 
