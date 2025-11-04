@@ -244,7 +244,7 @@ func uninstallCmd() *cobra.Command {
 			}
 
 			cacheMgr := cache.NewManager(cfg.CacheDir)
-			
+
 			// List all versions if no version specified
 			models, err := cacheMgr.ListCachedModels()
 			if err != nil {
@@ -305,7 +305,7 @@ func verifyCmd() *cobra.Command {
 			}
 
 			cacheMgr := cache.NewManager(cfg.CacheDir)
-			
+
 			// Find the model
 			models, err := cacheMgr.ListCachedModels()
 			if err != nil {
@@ -369,13 +369,13 @@ func cacheCmd() *cobra.Command {
 		},
 	})
 
-		cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(&cobra.Command{
 		Use:   "clean",
 		Short: "Clean cache",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("Cleaning myelin cache...")
 			_ = cache.NewManager(cfg.CacheDir)
-			
+
 			// TODO: Implement cleanup policy
 			fmt.Println("(Cache cleanup not yet implemented)")
 			return nil
@@ -505,4 +505,3 @@ func registryCmd() *cobra.Command {
 
 	return cmd
 }
-
