@@ -1,0 +1,43 @@
+# Binaries
+/bin/
+/dist/
+/axon
+/axon.exe
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+vendor/
+
+# Test coverage
+*.coverprofile
+coverage.html
+
+# Config files (local)
+config.local.yaml
+.env
+
+# Cache
+.cache/
+*.tmp
+
+# Logs
+*.log
+
