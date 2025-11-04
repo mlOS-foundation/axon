@@ -313,4 +313,3 @@ func registryCmd() *cobra.Command {
 
 	return cmd
 }
-

@@ -1,4 +1,4 @@
-.PHONY: build test install clean lint fmt help
+.PHONY: build test install clean lint fmt help vet coverage
 
 # Build variables
 BINARY_NAME=axon
@@ -25,18 +25,40 @@ test: ## Run tests
 test-coverage: ## Run tests with coverage
 	@echo "Running tests with coverage..."
 	@go test -v -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "✓ Coverage report generated: coverage.html"
 
+coverage: test-coverage ## Alias for test-coverage
+
 lint: ## Run linters
 	@echo "Running linters..."
-	@go vet ./...
-	@echo "✓ Linting complete"
+	@if command -v golangci-lint > /dev/null; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+		go vet ./...; \
+	fi
 
 fmt: ## Format code
 	@echo "Formatting code..."
 	@go fmt ./...
+	@goimports -w .
 	@echo "✓ Code formatted"
+
+fmt-check: ## Check code formatting without modifying
+	@echo "Checking code formatting..."
+	@if [ "$$(gofmt -s -l . | wc -l)" -gt 0 ]; then \
+		echo "Code is not formatted. Run 'make fmt'"; \
+		gofmt -s -d .; \
+		exit 1; \
+	fi
+	@echo "✓ Code is properly formatted"
+
+vet: ## Run go vet
+	@echo "Running go vet..."
+	@go vet ./...
+	@echo "✓ go vet passed"
 
 install: build ## Install to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
@@ -65,7 +87,8 @@ dev: ## Run in development mode
 	@go run ./cmd/axon
 
 # CI targets
-ci: lint test ## Run CI checks
+ci: fmt-check vet lint test ## Run all CI checks
+
+validate: fmt-check vet lint test ## Alias for ci
 
 .DEFAULT_GOAL := help
-

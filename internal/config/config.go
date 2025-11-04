@@ -110,4 +110,3 @@ func (c *Config) Save() error {
 	// For now, just ensure directory exists
 	return nil
 }
-

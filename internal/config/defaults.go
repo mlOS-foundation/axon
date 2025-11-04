@@ -13,4 +13,3 @@ const (
 	// DefaultMaxRetries is the default number of download retries
 	DefaultMaxRetries = 3
 )
-

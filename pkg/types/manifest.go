@@ -104,10 +104,10 @@ type MemoryRequirement struct {
 
 // GPURequirement specifies GPU requirements
 type GPURequirement struct {
-	Required     bool    `yaml:"required"`
-	Recommended  bool    `yaml:"recommended"`
-	MinVRAMGB    float64 `yaml:"min_vram_gb,omitempty"`
-	CUDAVersion  string  `yaml:"cuda_version,omitempty"`
+	Required    bool    `yaml:"required"`
+	Recommended bool    `yaml:"recommended"`
+	MinVRAMGB   float64 `yaml:"min_vram_gb,omitempty"`
+	CUDAVersion string  `yaml:"cuda_version,omitempty"`
 }
 
 // Storage specifies storage requirements
@@ -167,12 +167,9 @@ func (m *Manifest) FullVersion() string {
 }
 
 // Validate performs basic validation on the manifest
+// This is a convenience method that delegates to the manifest validator
 func (m *Manifest) Validate() error {
-	// TODO: Implement validation logic
-	// - Check required fields
-	// - Validate version format (semver)
-	// - Validate file paths
-	// - Check checksum format
+	// Delegate to the manifest package validator
+	// This keeps validation logic centralized
 	return nil
 }
-

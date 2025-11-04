@@ -19,4 +19,3 @@ type InstalledModelInfo struct {
 	Size        int64
 	InstalledAt time.Time
 }
-

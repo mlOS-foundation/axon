@@ -12,11 +12,11 @@ type SearchResult struct {
 
 // RegistryIndex represents the registry index
 type RegistryIndex struct {
-	Version   string              `json:"version"`
-	Generated string              `json:"generated"`
-	Models    []IndexModelEntry   `json:"models"`
+	Version    string                   `json:"version"`
+	Generated  string                   `json:"generated"`
+	Models     []IndexModelEntry        `json:"models"`
 	Namespaces map[string]NamespaceInfo `json:"namespaces"`
-	Statistics Statistics          `json:"statistics"`
+	Statistics Statistics               `json:"statistics"`
 }
 
 // IndexModelEntry represents a model entry in the index
@@ -40,8 +40,7 @@ type NamespaceInfo struct {
 
 // Statistics provides registry statistics
 type Statistics struct {
-	TotalModels    int `json:"total_models"`
-	TotalDownloads int `json:"total_downloads"`
+	TotalModels     int `json:"total_models"`
+	TotalDownloads  int `json:"total_downloads"`
 	TotalNamespaces int `json:"total_namespaces"`
 }
-
