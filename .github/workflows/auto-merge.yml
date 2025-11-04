@@ -144,28 +144,47 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "✅ Admin /approve command detected - approving PR"
-        gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks"
+        # Approve the PR
+        gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" || {
+          echo "⚠️  Approval may already exist, continuing..."
+        }
+        # Mark as approved for next step
+        echo "approved_by_admin=true" >> $GITHUB_OUTPUT
         
     - name: Create bypass status checks
+      id: create-status
       if: steps.check-approve-command.outputs.approve_command_found == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "✅ Creating bypass status checks for admin approval"
         PR_SHA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json headRefOid --jq '.headRefOid')
+        echo "PR SHA: $PR_SHA"
         
         # Create success status for each required check
+        STATUS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         for check in "Test" "Lint" "Vet" "Build" "Admin Approval"; do
           echo "Creating status check: $check"
-          gh api repos/${{ github.repository }}/statuses/$PR_SHA \
+          if gh api repos/${{ github.repository }}/statuses/$PR_SHA \
             --method POST \
             -f state=success \
-            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f target_url="$STATUS_URL" \
             -f description="Bypassed by admin /approve command" \
-            -f context="$check" || echo "Failed to create status for $check (may already exist)"
+            -f context="$check" 2>&1; then
+            echo "✅ Created status for $check"
+          else
+            echo "⚠️  Failed to create status for $check (may already exist or insufficient permissions)"
+          fi
         done
         
-        echo "✅ All bypass status checks created"
+        echo "✅ All bypass status checks processed"
+        echo "status_checks_created=true" >> $GITHUB_OUTPUT
+        
+    - name: Wait for status checks
+      if: steps.check-approve-command.outputs.approve_command_found == 'true'
+      run: |
+        echo "⏳ Waiting for status checks to propagate..."
+        sleep 20
         
     - name: Merge PR
       if: steps.check-approve-command.outputs.approve_command_found == 'true'
@@ -174,21 +193,29 @@ jobs:
       run: |
         echo "🚀 Attempting to merge PR #${{ steps.get-pr-number.outputs.pr_number }}"
         
-        # Wait for status checks to propagate
-        sleep 15
-        
         # Check merge status
-        MERGE_STATUS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeableState --jq '{mergeable: .mergeable, state: .mergeableState}')
-        echo "Merge status: $MERGE_STATUS"
+        MERGE_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeableState,mergeStateStatus --jq '{mergeable: .mergeable, state: .mergeableState, status: .mergeStateStatus}')
+        echo "Merge info: $MERGE_INFO"
         
-        # Attempt to merge
-        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch 2>&1; then
+        # Attempt to merge with auto flag to bypass checks
+        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin 2>&1; then
           echo "✅ PR merged successfully"
         else
-          echo "⚠️  Merge attempt failed, but admin approval was processed"
-          echo "PR may need additional time for status checks to update"
-          echo "You can manually merge if needed"
-          # Don't fail the workflow - the approval was processed
+          MERGE_ERROR=$?
+          echo "⚠️  Merge attempt returned exit code: $MERGE_ERROR"
+          echo "Checking if merge is still needed..."
+          
+          # Check if already merged
+          CURRENT_STATE=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json state --jq '.state')
+          if [ "$CURRENT_STATE" = "MERGED" ]; then
+            echo "✅ PR is already merged"
+            exit 0
+          fi
+          
+          echo "PR state: $CURRENT_STATE"
+          echo "⚠️  Merge may need manual intervention or more time for status checks"
+          echo "Status checks have been created - you can manually merge if needed"
+          # Don't fail the workflow - we've done our job
           exit 0
         fi
 
