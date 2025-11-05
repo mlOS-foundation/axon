@@ -120,6 +120,35 @@ This will:
 - Update manifest files with correct checksums
 - Update package sizes
 
+## Downloading Real Models
+
+### Quick Download (Recommended)
+
+Download a curated set of popular models for immediate use:
+
+```bash
+./download-models.sh
+```
+
+This downloads:
+- BERT, DistilBERT, GPT-2 (NLP)
+- ResNet-50 (Vision)
+- Additional commonly used models
+
+### Full Download (All 100 Models)
+
+Download all models from the top 100 list:
+
+```bash
+./download-all-models.sh
+```
+
+**Note**: This downloads ~50-100GB and takes several hours.
+
+### Custom Download
+
+Edit `download_hf_models.py` to customize which models to download.
+
 ## Deployment to Hosted Registry
 
 This local registry can be deployed as a hosted model repository:
@@ -128,14 +157,14 @@ This local registry can be deployed as a hosted model repository:
 ```
 registry/
 ├── api/v1/models/        # All manifests
-├── packages/              # All model packages
+├── packages/              # All model packages (real .axon files)
 └── server.go             # HTTP server
 ```
 
 ### 2. Deployment Steps
 
-1. **Replace placeholder packages** with actual model files
-2. **Update checksums** using `update-checksums.go`
+1. **Download real models** using `download-models.sh` or `download-all-models.sh`
+2. **Update checksums** using `update-checksums.go` (done automatically)
 3. **Deploy server.go** to your hosting platform
 4. **Update registry URLs** in manifests to point to hosted domain
 5. **Configure CDN** for package downloads

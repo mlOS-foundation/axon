@@ -1,0 +1,4 @@
+# Python dependencies for downloading models from Hugging Face
+huggingface-hub>=0.20.0
+PyYAML>=6.0
+

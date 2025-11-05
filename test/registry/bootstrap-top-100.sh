@@ -69,12 +69,12 @@ go run generate-top-100-manifests.go "$REGISTRY_DIR" || {
     fi
 }
 
-# Step 5: Create placeholder packages
+# Step 5: Create placeholder packages (for models not yet downloaded)
 echo ""
 echo "5️⃣  Creating placeholder package files..."
 cd "$REGISTRY_DIR/packages"
 PACKAGE_COUNT=$(find "$REGISTRY_DIR/api/v1/models" -name "manifest.yaml" | wc -l | tr -d ' ')
-echo "   Creating $PACKAGE_COUNT placeholder packages..."
+echo "   Creating placeholder packages for $PACKAGE_COUNT models..."
 
 find "$REGISTRY_DIR/api/v1/models" -name "manifest.yaml" | while read manifest; do
     # Extract namespace, name, version from path
@@ -88,6 +88,11 @@ find "$REGISTRY_DIR/api/v1/models" -name "manifest.yaml" | while read manifest; 
         echo "Placeholder package for ${namespace}/${name}@${version}" > "$package_file"
     fi
 done
+
+echo ""
+echo "   💡 To download real models from Hugging Face:"
+echo "      ./download-models.sh"
+echo "      (This will download actual model files and create real packages)"
 
 # Step 6: Update checksums in manifests
 echo ""
