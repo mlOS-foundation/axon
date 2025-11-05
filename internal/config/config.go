@@ -38,8 +38,9 @@ type RegistryConfig struct {
 	// Enable Hugging Face adapter (for real-time downloads)
 	EnableHuggingFace bool `yaml:"enable_huggingface"`
 
-	// Authentication token (future)
-	Token string `yaml:"token,omitempty"`
+	// Hugging Face authentication token (for gated/private models)
+	// Optional - not needed for public models
+	HuggingFaceToken string `yaml:"huggingface_token,omitempty"`
 
 	// Timeout settings
 	Timeout int `yaml:"timeout"` // seconds

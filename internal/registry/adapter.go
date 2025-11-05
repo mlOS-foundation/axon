@@ -41,6 +41,7 @@ type RepositoryAdapter interface {
 type HuggingFaceAdapter struct {
 	httpClient *http.Client
 	baseURL    string
+	token      string // Optional HF token for gated/private models
 }
 
 // NewHuggingFaceAdapter creates a new Hugging Face adapter
@@ -50,7 +51,24 @@ func NewHuggingFaceAdapter() *HuggingFaceAdapter {
 			Timeout: 5 * time.Minute, // Longer timeout for large downloads
 		},
 		baseURL: "https://huggingface.co",
+		token:   "", // No token by default - works for public models
 	}
+}
+
+// NewHuggingFaceAdapterWithToken creates a Hugging Face adapter with authentication token
+func NewHuggingFaceAdapterWithToken(token string) *HuggingFaceAdapter {
+	return &HuggingFaceAdapter{
+		httpClient: &http.Client{
+			Timeout: 5 * time.Minute,
+		},
+		baseURL: "https://huggingface.co",
+		token:   token,
+	}
+}
+
+// SetToken sets the Hugging Face token (for gated/private models)
+func (h *HuggingFaceAdapter) SetToken(token string) {
+	h.token = token
 }
 
 func (h *HuggingFaceAdapter) Name() string {
@@ -69,6 +87,11 @@ func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add authentication header if token is provided
+	if h.token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.token))
 	}
 
 	resp, err := h.httpClient.Do(req)
@@ -203,6 +226,11 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 			continue
 		}
 
+		// Add authentication header if token is provided (needed for gated/private models)
+		if h.token != "" {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.token))
+		}
+
 		resp, err := h.httpClient.Do(req)
 		if err != nil || resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
@@ -266,6 +294,11 @@ func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Add authentication header if token is provided
+	if h.token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", h.token))
 	}
 
 	resp, err := h.httpClient.Do(req)
