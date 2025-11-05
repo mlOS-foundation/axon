@@ -117,15 +117,15 @@ jobs:
             fi
           done
           
-          # Check if comment contains /approve
-          if [ "$IS_ADMIN" = "true" ] && echo "$COMMENT_BODY" | grep -qE "^/approve| /approve|/approve "; then
+          # Check if comment contains /approve (standalone or with whitespace)
+          if [ "$IS_ADMIN" = "true" ] && echo "$COMMENT_BODY" | grep -qE "(^| )/approve( |$)"; then
             echo "approve_command_found=true" >> $GITHUB_OUTPUT
             echo "✅ /approve command found in current comment from admin"
           fi
         fi
         
         # Also check all comments for /approve
-        if [ -z "$COMMENTS" ] || echo "$COMMENTS" | grep -qE "^/approve| /approve|/approve "; then
+        if [ -n "$COMMENTS" ] && echo "$COMMENTS" | grep -qE "(^| )/approve( |$)"; then
           if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" != "true" ]; then
             echo "approve_command_found=true" >> $GITHUB_OUTPUT
             echo "✅ /approve command found from admin in comments"
