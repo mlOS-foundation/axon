@@ -67,11 +67,11 @@ func main() {
 		file.Close()
 
 		packageSHA256 := hex.EncodeToString(hasher.Sum(nil))
-		
+
 		// Update manifest if checksum changed
 		if m.Distribution.Package.SHA256 != packageSHA256 {
 			m.Distribution.Package.SHA256 = packageSHA256
-			
+
 			// Also update file size
 			if stat, err := os.Stat(packagePath); err == nil {
 				m.Distribution.Package.Size = stat.Size()
@@ -100,4 +100,3 @@ func main() {
 	}
 	fmt.Printf("\n")
 }
-

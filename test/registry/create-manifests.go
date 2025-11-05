@@ -170,4 +170,3 @@ func main() {
 
 	fmt.Printf("\n✨ Created %d manifests\n", len(models))
 }
-
