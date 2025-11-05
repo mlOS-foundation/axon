@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/mlOS-foundation/axon/pkg/types"
-	"github.com/mlOS-foundation/axon/pkg/utils"
 )
 
 // RepositoryAdapter defines the interface for different model repositories
@@ -224,9 +223,10 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 
 		// Copy with progress tracking
 		reader := &progressReader{
-			Reader:   resp.Body,
-			Total:    resp.ContentLength,
-			Callback: progress,
+			Reader:     resp.Body,
+			Total:      resp.ContentLength,
+			Downloaded: 0,
+			Callback:   progress,
 		}
 
 		if _, err := io.Copy(outFile, reader); err != nil {
