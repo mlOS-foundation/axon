@@ -177,8 +177,17 @@ func installCmd() *cobra.Command {
 			}
 			
 			// 2. Hugging Face (fallback - can handle any model)
-			hfAdapter := registry.NewHuggingFaceAdapter()
-			adapterRegistry.Register(hfAdapter)
+			if cfg.Registry.EnableHuggingFace {
+				var hfAdapter *registry.HuggingFaceAdapter
+				if cfg.Registry.HuggingFaceToken != "" {
+					// Use token if provided (for gated/private models)
+					hfAdapter = registry.NewHuggingFaceAdapterWithToken(cfg.Registry.HuggingFaceToken)
+				} else {
+					// No token - works for public models
+					hfAdapter = registry.NewHuggingFaceAdapter()
+				}
+				adapterRegistry.Register(hfAdapter)
+			}
 
 			// Find the best adapter
 			adapter, err := adapterRegistry.FindAdapter(namespace, name)
