@@ -13,17 +13,27 @@ from pathlib import Path
 from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.utils import HfHubHTTPError
 
-# Top models to download (subset for initial testing - can expand)
+# Top models to download - real models for e2e experience
+# These are actual model files that can be installed and used immediately
 MODELS_TO_DOWNLOAD = [
-    # Small NLP models for quick testing
-    {"namespace": "nlp", "name": "bert-base-uncased", "hf_id": "bert-base-uncased", "files": ["config.json", "pytorch_model.bin"]},
-    {"namespace": "nlp", "name": "distilbert-base-uncased", "hf_id": "distilbert-base-uncased", "files": ["config.json", "pytorch_model.bin"]},
-    {"namespace": "nlp", "name": "gpt2", "hf_id": "gpt2", "files": ["config.json", "pytorch_model.bin"]},
+    # Small NLP models (fast download, commonly used)
+    {"namespace": "nlp", "name": "bert-base-uncased", "hf_id": "bert-base-uncased", "files": ["config.json", "pytorch_model.bin", "vocab.txt", "tokenizer_config.json"]},
+    {"namespace": "nlp", "name": "distilbert-base-uncased", "hf_id": "distilbert-base-uncased", "files": ["config.json", "pytorch_model.bin", "vocab.txt", "tokenizer_config.json"]},
+    {"namespace": "nlp", "name": "gpt2", "hf_id": "gpt2", "files": ["config.json", "pytorch_model.bin", "vocab.json", "merges.txt", "tokenizer_config.json"]},
+    {"namespace": "nlp", "name": "roberta-base", "hf_id": "roberta-base", "files": ["config.json", "pytorch_model.bin", "vocab.json", "merges.txt"]},
+    {"namespace": "nlp", "name": "distilgpt2", "hf_id": "distilgpt2", "files": ["config.json", "pytorch_model.bin", "vocab.json", "merges.txt"]},
+    
+    # Sentence transformers (useful for embeddings)
+    {"namespace": "nlp", "name": "sentence-transformers/all-MiniLM-L6-v2", "hf_id": "sentence-transformers/all-MiniLM-L6-v2", "files": None},  # Download all files
     
     # Vision models
-    {"namespace": "vision", "name": "resnet50", "hf_id": "microsoft/resnet-50", "files": ["config.json", "pytorch_model.bin"]},
+    {"namespace": "vision", "name": "resnet50", "hf_id": "microsoft/resnet-50", "files": None},
+    {"namespace": "vision", "name": "resnet18", "hf_id": "microsoft/resnet-18", "files": None},
     
-    # Can add more models here
+    # Audio models
+    {"namespace": "audio", "name": "whisper-base", "hf_id": "openai/whisper-base", "files": None},
+    
+    # Add more models as needed - start with smaller ones for faster setup
 ]
 
 def compute_sha256(file_path):
@@ -52,7 +62,7 @@ def create_axon_package(model_info, registry_dir):
         os.makedirs(temp_dir, exist_ok=True)
         
         # Download specific files if specified, otherwise download all
-        if "files" in model_info and model_info["files"]:
+        if "files" in model_info and model_info["files"] and model_info["files"] is not None:
             for file_name in model_info["files"]:
                 try:
                     local_path = hf_hub_download(
@@ -64,15 +74,34 @@ def create_axon_package(model_info, registry_dir):
                     print(f"   ✓ Downloaded {file_name}")
                 except HfHubHTTPError as e:
                     print(f"   ⚠️  Could not download {file_name}: {e}")
+                    # Try alternative filenames
+                    if file_name == "pytorch_model.bin":
+                        # Try safetensors or other formats
+                        try:
+                            hf_hub_download(repo_id=hf_id, filename="model.safetensors", local_dir=temp_dir, local_dir_use_symlinks=False)
+                            print(f"   ✓ Downloaded model.safetensors (alternative)")
+                        except:
+                            pass
         else:
-            # Download entire model (use with caution - can be large)
-            snapshot_download(
-                repo_id=hf_id,
-                local_dir=temp_dir,
-                local_dir_use_symlinks=False,
-                ignore_patterns=["*.safetensors", "*.msgpack", "*.h5", "*.ckpt"]  # Skip large formats
-            )
-            print(f"   ✓ Downloaded model files")
+            # Download entire model (skip very large files)
+            try:
+                snapshot_download(
+                    repo_id=hf_id,
+                    local_dir=temp_dir,
+                    local_dir_use_symlinks=False,
+                    ignore_patterns=["*.safetensors", "*.msgpack", "*.h5", "*.ckpt", "*.ot", "*.onnx"]  # Skip large formats
+                )
+                print(f"   ✓ Downloaded model files")
+            except Exception as e:
+                print(f"   ⚠️  Full download failed: {e}, trying essential files only...")
+                # Fallback: download just essential files
+                essential_files = ["config.json", "tokenizer_config.json", "vocab.txt", "vocab.json"]
+                for file_name in essential_files:
+                    try:
+                        hf_hub_download(repo_id=hf_id, filename=file_name, local_dir=temp_dir, local_dir_use_symlinks=False)
+                        print(f"   ✓ Downloaded {file_name}")
+                    except:
+                        pass
         
         # Create .axon package (tar.gz format)
         with tarfile.open(package_path, "w:gz") as tar:

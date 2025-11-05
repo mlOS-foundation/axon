@@ -90,9 +90,13 @@ find "$REGISTRY_DIR/api/v1/models" -name "manifest.yaml" | while read manifest; 
 done
 
 echo ""
-echo "   💡 To download real models from Hugging Face:"
-echo "      ./download-models.sh"
-echo "      (This will download actual model files and create real packages)"
+echo "   💡 IMPORTANT: Download real models for e2e experience:"
+echo "      ./download-models.sh    # Quick: Download curated models"
+echo "      ./download-all-models.sh  # Full: Download all 100 models"
+echo ""
+echo "      This creates ACTUAL .axon packages with real model files"
+echo "      that can be installed and used immediately - no need to"
+echo "      go to Hugging Face or other tools!"
 
 # Step 6: Update checksums in manifests
 echo ""
