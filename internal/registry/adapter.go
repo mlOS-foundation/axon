@@ -146,7 +146,7 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 				Files: []types.ModelFile{
 					{
 						Path:   "pytorch_model.bin",
-						Size:   0, // Will be determined during download
+						Size:   0,  // Will be determined during download
 						SHA256: "", // Will be computed during download
 					},
 				},
@@ -220,7 +220,7 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	downloadedFiles := []string{}
 	for _, file := range modelFiles {
 		url := fmt.Sprintf("%s/%s/resolve/main/%s", h.baseURL, hfModelID, file)
-		
+
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
 			continue
@@ -290,7 +290,7 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) ([]string, error) {
 	// Use Hugging Face API to get file list
 	url := fmt.Sprintf("%s/api/models/%s", h.baseURL, modelID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -486,4 +486,3 @@ func (ar *AdapterRegistry) FindAdapter(namespace, name string) (RepositoryAdapte
 func (ar *AdapterRegistry) GetAllAdapters() []RepositoryAdapter {
 	return ar.adapters
 }
-

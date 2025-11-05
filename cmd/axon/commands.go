@@ -168,14 +168,14 @@ func installCmd() *cobra.Command {
 
 			// Try to find adapter for this model
 			adapterRegistry := registry.NewAdapterRegistry()
-			
+
 			// Register adapters in priority order
 			// 1. Local registry (if configured)
 			if cfg.Registry.URL != "" {
 				localAdapter := registry.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
 				adapterRegistry.Register(localAdapter)
 			}
-			
+
 			// 2. Hugging Face (fallback - can handle any model)
 			if cfg.Registry.EnableHuggingFace {
 				var hfAdapter *registry.HuggingFaceAdapter
