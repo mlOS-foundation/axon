@@ -9,7 +9,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/mlOS-foundation/axon/internal/manifest"
 	"github.com/mlOS-foundation/axon/pkg/types"
+	"github.com/mlOS-foundation/axon/pkg/utils"
 )
 
 // Client represents a registry HTTP client
@@ -82,9 +84,12 @@ func (c *Client) GetManifest(ctx context.Context, namespace, name, version strin
 	}
 
 	// Parse manifest using the manifest package
-	// This will be wired up when we integrate everything
-	_ = data
-	return nil, fmt.Errorf("manifest parsing not yet integrated")
+	manifest, err := manifest.ParseBytes(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse manifest: %w", err)
+	}
+
+	return manifest, nil
 }
 
 // DownloadPackage downloads a model package
@@ -166,9 +171,9 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 }
 
 func verifyChecksum(filePath, expectedSHA256 string) error {
-	// Import utils here to avoid circular dependency
-	// For now, return error - will be implemented
-	_ = filePath
-	_ = expectedSHA256
-	return fmt.Errorf("checksum verification not yet integrated")
+	if expectedSHA256 == "" {
+		return nil // No checksum to verify
+	}
+
+	return utils.VerifySHA256(filePath, expectedSHA256)
 }

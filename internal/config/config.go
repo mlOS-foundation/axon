@@ -1,8 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents the axon configuration
@@ -26,14 +29,18 @@ type Config struct {
 
 // RegistryConfig contains registry settings
 type RegistryConfig struct {
-	// Primary registry URL
+	// Primary registry URL (local Axon registry)
 	URL string `yaml:"url"`
 
 	// Mirror URLs (axon terminals - multiple endpoints)
 	Mirrors []string `yaml:"mirrors"`
 
-	// Authentication token (future)
-	Token string `yaml:"token,omitempty"`
+	// Enable Hugging Face adapter (for real-time downloads)
+	EnableHuggingFace bool `yaml:"enable_huggingface"`
+
+	// Hugging Face authentication token (for gated/private models)
+	// Optional - not needed for public models
+	HuggingFaceToken string `yaml:"huggingface_token,omitempty"`
 
 	// Timeout settings
 	Timeout int `yaml:"timeout"` // seconds
@@ -60,9 +67,10 @@ func DefaultConfig() *Config {
 		HomeDir:  axonHome,
 		CacheDir: filepath.Join(axonHome, "cache"),
 		Registry: RegistryConfig{
-			URL:     "https://registry.axon.mlos.io",
-			Mirrors: []string{},
-			Timeout: 300,
+			URL:               "",
+			Mirrors:           []string{},
+			EnableHuggingFace: true, // Enable HF adapter by default
+			Timeout:           300,
 		},
 		Download: DownloadConfig{
 			Parallel:        3,
@@ -80,7 +88,6 @@ func ConfigPath() string {
 }
 
 // Load loads configuration from file
-// TODO: Implement YAML loading
 func Load() (*Config, error) {
 	cfgPath := ConfigPath()
 
@@ -90,23 +97,39 @@ func Load() (*Config, error) {
 		return DefaultConfig(), nil
 	}
 
-	// TODO: Load from YAML file
-	// For now, return default
-	return DefaultConfig(), nil
+	// Load from YAML file
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &cfg, nil
 }
 
 // Save saves configuration to file
-// TODO: Implement YAML saving
 func (c *Config) Save() error {
 	cfgPath := ConfigPath()
 	cfgDir := filepath.Dir(cfgPath)
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// TODO: Save to YAML file
-	// For now, just ensure directory exists
+	// Save to YAML file
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
 	return nil
 }

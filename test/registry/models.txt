@@ -1,0 +1,10 @@
+bert-base-uncased
+gpt2
+distilbert-base-uncased
+roberta-base
+t5-base
+resnet50
+vit-base-patch16-224
+yolov8n
+whisper-base
+stabilityai/stable-diffusion-2-1

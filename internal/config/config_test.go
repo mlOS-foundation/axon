@@ -17,9 +17,8 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("DefaultConfig() CacheDir should not be empty")
 	}
 
-	if cfg.Registry.URL == "" {
-		t.Error("DefaultConfig() Registry.URL should not be empty")
-	}
+	// Registry.URL is now empty by default (HF adapter is primary, local registry is optional)
+	// This is intentional - users can install directly from HF without configuring a registry
 
 	if cfg.Download.Parallel <= 0 {
 		t.Error("DefaultConfig() Download.Parallel should be positive")
@@ -49,9 +48,10 @@ func TestLoad(t *testing.T) {
 		t.Fatal("Load() should return a config")
 	}
 
-	// Verify it's a default config
-	if cfg.Registry.URL != DefaultRegistryURL {
-		t.Errorf("Load() Registry.URL = %v, want %v", cfg.Registry.URL, DefaultRegistryURL)
+	// Verify it's a default config (URL is empty by default)
+	// Just verify that HF adapter is enabled
+	if !cfg.Registry.EnableHuggingFace {
+		t.Error("Load() Registry.EnableHuggingFace should be true by default")
 	}
 }
 
