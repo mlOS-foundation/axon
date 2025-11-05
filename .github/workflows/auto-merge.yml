@@ -255,36 +255,4 @@ Build"
         
         echo "⚠️  Merge attempts completed. PR may need manual merge or more time."
         
-    - name: Merge PR
-      if: steps.check-approve-command.outputs.approve_command_found == 'true'
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "🚀 Attempting to merge PR #${{ steps.get-pr-number.outputs.pr_number }}"
-        
-        # Check merge status
-        MERGE_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus --jq '{mergeable: .mergeable, status: .mergeStateStatus}')
-        echo "Merge info: $MERGE_INFO"
-        
-        # Attempt to merge with admin flag to bypass checks
-        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin 2>&1; then
-          echo "✅ PR merged successfully"
-        else
-          MERGE_ERROR=$?
-          echo "⚠️  Merge attempt returned exit code: $MERGE_ERROR"
-          echo "Checking if merge is still needed..."
-          
-          # Check if already merged
-          CURRENT_STATE=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json state --jq '.state')
-          if [ "$CURRENT_STATE" = "MERGED" ]; then
-            echo "✅ PR is already merged"
-            exit 0
-          fi
-          
-          echo "PR state: $CURRENT_STATE"
-          echo "⚠️  Merge may need manual intervention or more time for status checks"
-          echo "Status checks have been created - you can manually merge if needed"
-          # Don't fail the workflow - we've done our job
-          exit 0
-        fi
 
