@@ -2,7 +2,12 @@
 
 ## Overview
 
-Axon and vLLM serve different purposes in the ML ecosystem, though they both work with ML models. Understanding their differences helps clarify when to use each tool.
+**Axon alone is NOT a replacement for vLLM** - they serve different purposes. However, **Axon + MLOS Core together provide a comprehensive alternative to vLLM** within the MLOS ecosystem.
+
+This document clarifies:
+- How Axon and vLLM differ (Axon = distribution, vLLM = inference)
+- Why **Axon + MLOS Core** is a better alternative to vLLM
+- The advantages of the integrated MLOS approach
 
 ## Axon: Model Package Manager & Distribution Layer
 
@@ -108,13 +113,26 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
 | **Caching** | Intelligent local caching | Runtime memory management |
 | **Distribution** | Registry-based distribution | Direct from HuggingFace/etc. |
 
-## Complementary Relationship
+## Axon + MLOS Core: Complete Alternative to vLLM
 
-Axon and vLLM can work together:
+**The key insight**: While Axon alone is just distribution, **Axon + MLOS Core together provide a complete inference infrastructure** that competes with vLLM.
+
+### MLOS Core Capabilities
+
+Based on the patent and architecture, MLOS Core provides:
+
+- 🚀 **Model Hosting**: Register and manage models in the runtime
+- 🔌 **Inference APIs**: Multi-protocol (HTTP, gRPC, IPC) for inference
+- ⚡ **Kernel-Level Optimizations**: Zero-copy operations, resource pooling
+- 🔧 **Plugin Architecture**: Support for PyTorch, TensorFlow, ONNX, custom frameworks
+- 📊 **Resource Management**: Intelligent GPU/CPU allocation
+- 🎯 **Performance**: Sub-millisecond inference via IPC, optimized batching
+
+### Integrated MLOS Workflow
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  Axon (Model Management)                        │
+│  Axon (Model Distribution)                     │
 │  - Install models                               │
 │  - Manage versions                               │
 │  - Cache locally                                 │
@@ -122,23 +140,122 @@ Axon and vLLM can work together:
                │
                ▼
 ┌─────────────────────────────────────────────────┐
-│  vLLM (Model Inference)                         │
-│  - Serve installed models                       │
-│  - Provide API                                   │
-│  - Optimize inference                           │
+│  MLOS Core (Model Inference)                   │
+│  - Register models                               │
+│  - Host for inference                            │
+│  - Provide HTTP/gRPC/IPC APIs                   │
+│  - Kernel-level optimizations                    │
 └─────────────────────────────────────────────────┘
 ```
 
-### Example Workflow
+### Complete Example: Axon + MLOS Core
 
 ```bash
-# Step 1: Use Axon to install the model
+# Step 1: Install model with Axon
 axon install nlp/llama-2-7b@1.0.0
 
-# Step 2: Use vLLM to serve the installed model
-# (vLLM would need to be configured to use Axon's cache location)
-vllm serve /path/to/axon/cache/nlp/llama-2-7b/1.0.0
+# Step 2: Register and serve with MLOS Core
+# (via MLOS Core API)
+curl -X POST http://localhost:8080/api/v1/models/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "llama-2-7b",
+    "plugin_id": "pytorch",
+    "path": "/path/to/axon/cache/nlp/llama-2-7b/1.0.0",
+    "framework": "pytorch"
+  }'
+
+# Step 3: Run inference via MLOS Core API
+curl -X POST http://localhost:8080/api/v1/inference \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "llama-2-7b",
+    "input": "What is machine learning?"
+  }'
 ```
+
+## Axon + MLOS Core vs vLLM
+
+### Comparison Table
+
+| Aspect | vLLM | Axon + MLOS Core |
+|--------|------|------------------|
+| **Model Distribution** | ❌ None (uses HuggingFace directly) | ✅ Axon provides registry-based distribution |
+| **Version Management** | ❌ Basic (model IDs) | ✅ Full semantic versioning |
+| **Model Discovery** | ❌ Manual (know model name) | ✅ Search and discovery |
+| **Inference APIs** | ✅ HTTP (OpenAI-compatible) | ✅ HTTP, gRPC, IPC (multi-protocol) |
+| **Performance** | ✅ High (PagedAttention) | ✅ High (kernel-level optimizations) |
+| **Framework Support** | ⚠️ LLMs primarily | ✅ All ML models (vision, NLP, audio) |
+| **Plugin System** | ❌ No | ✅ Hot-swappable framework plugins |
+| **Resource Management** | ⚠️ Basic | ✅ Intelligent resource allocation |
+| **Caching** | ❌ Runtime only | ✅ Distribution + runtime caching |
+| **Ecosystem** | ❌ Standalone | ✅ Integrated MLOS ecosystem |
+| **Kernel Integration** | ❌ No | ✅ Kernel-level optimizations |
+
+### Advantages of Axon + MLOS Core
+
+1. **Complete Lifecycle Management**
+   - Axon handles distribution → MLOS Core handles inference
+   - Single integrated workflow
+
+2. **Multi-Framework Support**
+   - Not limited to LLMs
+   - Supports vision, NLP, audio, custom models
+
+3. **Kernel-Level Performance**
+   - Direct OS integration (per patent)
+   - Zero-copy operations
+   - Resource pooling
+
+4. **Multi-Protocol APIs**
+   - HTTP for ease of use
+   - gRPC for high performance
+   - IPC for ultra-low latency
+
+5. **Enterprise Features**
+   - Version management
+   - Model discovery
+   - Centralized distribution
+   - Resource management
+
+6. **Ecosystem Integration**
+   - Part of broader MLOS vision
+   - Future: Kernel, scheduler, hub integration
+
+## When to Use Each
+
+### Use vLLM When:
+- ✅ You only need LLM inference
+- ✅ You want OpenAI-compatible API
+- ✅ You're okay with manual model management
+- ✅ You don't need versioning/discovery
+- ✅ You want standalone tool
+
+### Use Axon + MLOS Core When:
+- ✅ You want complete model lifecycle management
+- ✅ You need multi-framework support (not just LLMs)
+- ✅ You want kernel-level optimizations
+- ✅ You need multi-protocol APIs (HTTP/gRPC/IPC)
+- ✅ You want integrated ecosystem
+- ✅ You need versioning and discovery
+- ✅ You're building ML infrastructure
+- ✅ You want enterprise features
+
+## Future Integration
+
+As MLOS evolves, the integration will become even tighter:
+
+```
+Axon (Distribution)
+    ↓
+MLOS Core (Inference)
+    ↓
+MLOS Kernel (Kernel optimizations)
+    ↓
+MLOS Scheduler (Orchestration)
+```
+
+This creates a complete ML operating system, not just inference servers.
 
 ## When to Use Each
 
@@ -157,32 +274,45 @@ vllm serve /path/to/axon/cache/nlp/llama-2-7b/1.0.0
 - ✅ You're building LLM applications
 - ✅ Models are already available (installed)
 
-## Future Integration
-
-In the MLOS ecosystem, Axon could potentially:
-- Install models that vLLM then serves
-- Manage model versions for vLLM
-- Provide model discovery for vLLM users
-- Cache models that vLLM accesses
-
-The relationship would be:
-```
-Axon (Distribution) → Model Cache → vLLM (Inference)
-```
-
 ## Summary
+
+### Individual Tools
 
 | | Axon | vLLM |
 |---|---|---|
 | **Analogy** | "npm/pip for ML models" | "nginx/express for LLM inference" |
 | **Question** | "Where do I get models?" | "How do I run models?" |
-| **Stage** | Pre-runtime | Runtime |
+| **Stage** | Pre-runtime (distribution) | Runtime (inference) |
 | **Focus** | Distribution & Management | Inference & Serving |
 
-Both tools are valuable but solve different problems in the ML lifecycle. Axon handles model acquisition and management, while vLLM handles model execution and serving.
+### Combined Solution
+
+| | Axon + MLOS Core | vLLM |
+|---|---|---|
+| **Scope** | Complete ML infrastructure | LLM inference only |
+| **Distribution** | ✅ Integrated (Axon) | ❌ External (HuggingFace) |
+| **Inference** | ✅ Multi-protocol (MLOS Core) | ✅ HTTP (OpenAI-compatible) |
+| **Framework Support** | ✅ All ML models | ⚠️ LLMs primarily |
+| **Ecosystem** | ✅ Integrated MLOS | ❌ Standalone |
+| **Performance** | ✅ Kernel-level optimizations | ✅ PagedAttention |
+
+## Conclusion
+
+**Axon alone ≠ vLLM replacement** (Axon is distribution, vLLM is inference)
+
+**Axon + MLOS Core = Complete vLLM alternative** with:
+- ✅ Better distribution (Axon)
+- ✅ Multi-protocol inference (MLOS Core)
+- ✅ Multi-framework support
+- ✅ Kernel-level optimizations
+- ✅ Integrated ecosystem
+- ✅ Enterprise features
+
+The MLOS approach provides a **complete ML operating system**, not just an inference server. For users building comprehensive ML infrastructure, **Axon + MLOS Core offers a more complete solution than vLLM alone**.
 
 ---
 
 **Axon**: Signal. Propagate. Myelinate. (Distribution)  
-**vLLM**: Serve. Optimize. Generate. (Inference)
+**MLOS Core**: Host. Optimize. Infer. (Runtime)  
+**Together**: Complete ML infrastructure alternative to vLLM
 
