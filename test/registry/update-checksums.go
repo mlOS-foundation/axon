@@ -1,6 +1,8 @@
 //go:build ignore
 // +build ignore
 
+// Simple utility to update checksums in manifests after packages are created
+// This is only needed for local registry testing - not used in normal operation
 package main
 
 import (

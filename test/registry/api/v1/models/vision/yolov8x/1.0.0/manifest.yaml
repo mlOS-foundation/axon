@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Model
+metadata:
+    name: yolov8x
+    namespace: vision
+    version: 1.0.0
+    description: YOLOv8 extra large detection
+    authors:
+        - name: Hugging Face
+          organization: Hugging Face
+    license: AGPL-3.0
+    created: 2025-11-05T22:54:18.191318+05:30
+    updated: 2025-11-05T22:54:18.191318+05:30
+    tags:
+        - vision
+        - detection
+        - yolo
+spec:
+    framework:
+        name: PyTorch
+        version: 2.0.0
+    format:
+        type: pytorch
+        files:
+            - path: model.bin
+              size: 104857600
+              sha256: placeholder-sha256-checksum
+    io:
+        inputs:
+            - name: input
+              dtype: float32
+              shape:
+                - -1
+                - -1
+        outputs:
+            - name: output
+              dtype: float32
+              shape:
+                - -1
+                - -1
+    requirements:
+        compute:
+            cpu:
+                min_cores: 2
+                recommended_cores: 4
+            memory:
+                min_gb: 2
+                recommended_gb: 4
+        storage:
+            min_gb: 0.5
+            recommended_gb: 1
+distribution:
+    package:
+        url: http://localhost:8080/packages/vision-yolov8x-1.0.0.axon
+        size: 104857600
+        sha256: placeholder-sha256-checksum
+    registry:
+        url: http://localhost:8080
+        namespace: vision

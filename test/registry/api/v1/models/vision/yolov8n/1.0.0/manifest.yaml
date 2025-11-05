@@ -4,13 +4,13 @@ metadata:
     name: yolov8n
     namespace: vision
     version: 1.0.0
-    description: YOLOv8 nano object detection model
+    description: YOLOv8 nano object detection
     authors:
         - name: Hugging Face
           organization: Hugging Face
     license: AGPL-3.0
-    created: 2025-11-05T14:23:58.952074+05:30
-    updated: 2025-11-05T14:23:58.952074+05:30
+    created: 2025-11-05T22:54:18.191318+05:30
+    updated: 2025-11-05T22:54:18.191318+05:30
     tags:
         - vision
         - detection

@@ -4,13 +4,13 @@ metadata:
     name: vit-base-patch16-224
     namespace: vision
     version: 1.0.0
-    description: Vision Transformer base model
+    description: Vision Transformer base
     authors:
         - name: Hugging Face
           organization: Hugging Face
     license: Apache-2.0
-    created: 2025-11-05T14:23:58.952074+05:30
-    updated: 2025-11-05T14:23:58.952074+05:30
+    created: 2025-11-05T22:54:18.191318+05:30
+    updated: 2025-11-05T22:54:18.191318+05:30
     tags:
         - vision
         - transformer

@@ -4,13 +4,13 @@ metadata:
     name: resnet50
     namespace: vision
     version: 1.0.0
-    description: ResNet-50 image classification model
+    description: ResNet-50 image classification
     authors:
         - name: Hugging Face
           organization: Hugging Face
-    license: MIT
-    created: 2025-11-05T14:23:58.952074+05:30
-    updated: 2025-11-05T14:23:58.952074+05:30
+    license: BSD-3-Clause
+    created: 2025-11-05T22:54:18.191318+05:30
+    updated: 2025-11-05T22:54:18.191318+05:30
     tags:
         - vision
         - classification
