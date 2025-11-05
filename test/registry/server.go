@@ -317,9 +317,9 @@ func indexHandler(registryDir string) http.HandlerFunc {
                 return;
             }
 
-            fetch(`/api/v1/search?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
+            fetch('/api/v1/search?q=' + encodeURIComponent(query))
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
                     const container = document.getElementById('modelsContainer');
                     if (data.length === 0) {
                         container.innerHTML = '<div class="empty-state"><h2>No models found</h2><p>Try a different search query.</p></div>';
@@ -327,34 +327,32 @@ func indexHandler(registryDir string) http.HandlerFunc {
                     }
 
                     let html = '<div class="models-grid">';
-                    data.forEach(model => {
-                        html += `
-                            <div class="model-card">
-                                <div class="model-header">
-                                    <div>
-                                        <div class="model-namespace">${model.namespace}</div>
-                                        <div class="model-name">${model.name}</div>
-                                    </div>
-                                    <span class="model-version">${model.version}</span>
-                                </div>
-                                <div class="model-description">${model.description}</div>
-                                <div class="model-actions">
-                                    <a href="/api/v1/models/${model.namespace}/${model.name}/${model.version}/manifest.yaml" class="btn btn-secondary" target="_blank">View Manifest</a>
-                                    <button class="btn btn-primary" onclick='installModel("${model.namespace}/${model.name}@${model.version}")'>Install</button>
-                                </div>
-                            </div>
-                        `;
+                    data.forEach(function(model) {
+                        html += '<div class="model-card">' +
+                            '<div class="model-header">' +
+                            '<div>' +
+                            '<div class="model-namespace">' + model.namespace + '</div>' +
+                            '<div class="model-name">' + model.name + '</div>' +
+                            '</div>' +
+                            '<span class="model-version">' + model.version + '</span>' +
+                            '</div>' +
+                            '<div class="model-description">' + model.description + '</div>' +
+                            '<div class="model-actions">' +
+                            '<a href="/api/v1/models/' + model.namespace + '/' + model.name + '/' + model.version + '/manifest.yaml" class="btn btn-secondary" target="_blank">View Manifest</a>' +
+                            '<button class="btn btn-primary" onclick="installModel(\'' + model.namespace + '/' + model.name + '@' + model.version + '\')">Install</button>' +
+                            '</div>' +
+                            '</div>';
                     });
                     html += '</div>';
                     container.innerHTML = html;
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('Search error:', error);
                 });
         }
 
         function installModel(modelSpec) {
-            alert(`To install this model, run:\n\naxon install ${modelSpec}\n\n\nMake sure you have configured the registry:\naxon registry set default http://localhost:8080`);
+            alert('To install this model, run:\\n\\naxon install ' + modelSpec + '\\n\\n\\nMake sure you have configured the registry:\\naxon registry set default http://localhost:8080');
         }
     </script>
 </body>
