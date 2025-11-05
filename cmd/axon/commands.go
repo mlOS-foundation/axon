@@ -464,13 +464,36 @@ func registryCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(&cobra.Command{
+		Use:   "set [name] [url]",
+		Short: "Set registry URL",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			url := args[1]
+			if name == "default" {
+				cfg.Registry.URL = url
+				if err := cfg.Save(); err != nil {
+					return fmt.Errorf("failed to save config: %w", err)
+				}
+				fmt.Printf("✓ Set default registry to: %s\n", url)
+			} else {
+				return fmt.Errorf("unknown registry name: %s (use 'default')", name)
+			}
+			return nil
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
 		Use:   "add [url]",
-		Short: "Add registry",
+		Short: "Add registry mirror",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url := args[0]
-			fmt.Printf("Adding registry: %s\n", url)
-			fmt.Println("(Registry add not yet implemented)")
+			cfg.Registry.Mirrors = append(cfg.Registry.Mirrors, url)
+			if err := cfg.Save(); err != nil {
+				return fmt.Errorf("failed to save config: %w", err)
+			}
+			fmt.Printf("✓ Added registry mirror: %s\n", url)
 			return nil
 		},
 	})

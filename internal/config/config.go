@@ -1,8 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents the axon configuration
@@ -80,7 +83,6 @@ func ConfigPath() string {
 }
 
 // Load loads configuration from file
-// TODO: Implement YAML loading
 func Load() (*Config, error) {
 	cfgPath := ConfigPath()
 
@@ -90,23 +92,39 @@ func Load() (*Config, error) {
 		return DefaultConfig(), nil
 	}
 
-	// TODO: Load from YAML file
-	// For now, return default
-	return DefaultConfig(), nil
+	// Load from YAML file
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &cfg, nil
 }
 
 // Save saves configuration to file
-// TODO: Implement YAML saving
 func (c *Config) Save() error {
 	cfgPath := ConfigPath()
 	cfgDir := filepath.Dir(cfgPath)
 
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// TODO: Save to YAML file
-	// For now, just ensure directory exists
+	// Save to YAML file
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
 	return nil
 }

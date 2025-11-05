@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Model
+metadata:
+    name: vit-base-patch16-224
+    namespace: vision
+    version: 1.0.0
+    description: Vision Transformer base model
+    authors:
+        - name: Hugging Face
+          organization: Hugging Face
+    license: Apache-2.0
+    created: 2025-11-05T14:23:58.952074+05:30
+    updated: 2025-11-05T14:23:58.952074+05:30
+    tags:
+        - vision
+        - transformer
+        - vit
+spec:
+    framework:
+        name: PyTorch
+        version: 2.0.0
+    format:
+        type: pytorch
+        files:
+            - path: model.bin
+              size: 104857600
+              sha256: placeholder-sha256-checksum
+    io:
+        inputs:
+            - name: input
+              dtype: float32
+              shape:
+                - -1
+                - -1
+        outputs:
+            - name: output
+              dtype: float32
+              shape:
+                - -1
+                - -1
+    requirements:
+        compute:
+            cpu:
+                min_cores: 2
+                recommended_cores: 4
+            memory:
+                min_gb: 2
+                recommended_gb: 4
+        storage:
+            min_gb: 0.5
+            recommended_gb: 1
+distribution:
+    package:
+        url: http://localhost:8080/packages/vision-vit-base-patch16-224-1.0.0.axon
+        size: 104857600
+        sha256: 343981416ba53e3dbb31b12aaf945421d9fe3656743e5aad8e6f7c7c2fb8b67e
+    registry:
+        url: http://localhost:8080
+        namespace: vision
