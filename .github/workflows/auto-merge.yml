@@ -200,6 +200,8 @@ Build"
               -f description="Bypassed by admin /approve command" \
               -f context="$check" 2>&1; then
               echo "✅ Created status for $check"
+              # Wait a moment for status to propagate
+              sleep 2
             else
               echo "⚠️  Failed to create status for $check (may already exist or insufficient permissions)"
             fi
