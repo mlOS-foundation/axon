@@ -433,7 +433,12 @@ func (l *LocalRegistryAdapter) Name() string {
 }
 
 func (l *LocalRegistryAdapter) CanHandle(namespace, name string) bool {
-	// Local registry can handle any model if it's configured
+	// Local registry can only handle models that are NOT from Hugging Face
+	// Hugging Face models use 'hf/' namespace - let HF adapter handle those
+	if namespace == "hf" {
+		return false
+	}
+	// Local registry can handle models if it's configured and model is not HF
 	return l.client.baseURL != ""
 }
 
