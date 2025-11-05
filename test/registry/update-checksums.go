@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/mlOS-foundation/axon/internal/manifest"
-	"github.com/mlOS-foundation/axon/pkg/types"
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
