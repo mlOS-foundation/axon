@@ -79,6 +79,9 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        # Initialize flag
+        APPROVE_FOUND=false
+        
         # Define admin users
         ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
         
@@ -111,24 +114,26 @@ jobs:
           
           # Check if comment contains /approve (standalone or with whitespace)
           if [ "$IS_ADMIN" = "true" ] && echo "$COMMENT_BODY" | grep -qE "(^| )/approve( |$)"; then
-            echo "approve_command_found=true" >> $GITHUB_OUTPUT
+            APPROVE_FOUND=true
             echo "✅ /approve command found in current comment from admin"
           fi
         fi
         
         # Also check all comments for /approve
-        if [ -n "$COMMENTS" ] && echo "$COMMENTS" | grep -qE "(^| )/approve( |$)"; then
-          if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" != "true" ]; then
-            echo "approve_command_found=true" >> $GITHUB_OUTPUT
-            echo "✅ /approve command found from admin in comments"
-          fi
+        if [ "$APPROVE_FOUND" != "true" ] && [ -n "$COMMENTS" ] && echo "$COMMENTS" | grep -qE "(^| )/approve( |$)"; then
+          APPROVE_FOUND=true
+          echo "✅ /approve command found from admin in comments"
         fi
         
-        if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" != "true" ]; then
+        # Set output
+        if [ "$APPROVE_FOUND" = "true" ]; then
+          echo "approve_command_found=true" >> $GITHUB_OUTPUT
+        else
           echo "approve_command_found=false" >> $GITHUB_OUTPUT
         fi
         
         echo "Comments from admins: $(echo "$COMMENTS" | head -5 || echo "None")"
+        echo "Approval command found: $APPROVE_FOUND"
         
     - name: Approve PR as admin override
       id: approve-pr
