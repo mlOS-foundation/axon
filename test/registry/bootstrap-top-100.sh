@@ -1,7 +1,17 @@
 #!/bin/bash
 
 # Bootstrap script to install Axon and set up local registry with top 100 Hugging Face models
-# This creates a base registry that can later be deployed as a hosted model repository
+# 
+# NOTE: With the new adapter system, this is OPTIONAL!
+# You can now install models directly from Hugging Face without pre-generating manifests:
+#   axon install hf/bert-base-uncased@latest
+#
+# This script is still useful for:
+# - Setting up a local registry for testing
+# - Creating a curated model collection
+# - Deploying a hosted registry with pre-packaged models
+#
+# For most users: Just use 'axon install hf/model-name@latest' directly!
 
 set -e
 
@@ -11,6 +21,22 @@ AXON_REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/axon"
 
 echo "🚀 Axon Registry Bootstrap - Top 100 Models"
 echo "==========================================="
+echo ""
+echo "⚠️  NOTE: This script is OPTIONAL!"
+echo "   With the new adapter system, you can install models directly:"
+echo "   axon install hf/bert-base-uncased@latest"
+echo ""
+echo "   This script is useful for:"
+echo "   - Local registry testing"
+echo "   - Curated model collections"
+echo "   - Hosted registry deployment"
+echo ""
+read -p "Continue with bootstrap? (y/N): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Cancelled. Use 'axon install hf/model-name@latest' to install models directly!"
+    exit 0
+fi
 echo ""
 
 # Step 1: Check if Axon is installed
