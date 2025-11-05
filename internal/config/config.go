@@ -29,11 +29,14 @@ type Config struct {
 
 // RegistryConfig contains registry settings
 type RegistryConfig struct {
-	// Primary registry URL
+	// Primary registry URL (local Axon registry)
 	URL string `yaml:"url"`
 
 	// Mirror URLs (axon terminals - multiple endpoints)
 	Mirrors []string `yaml:"mirrors"`
+
+	// Enable Hugging Face adapter (for real-time downloads)
+	EnableHuggingFace bool `yaml:"enable_huggingface"`
 
 	// Authentication token (future)
 	Token string `yaml:"token,omitempty"`
@@ -63,9 +66,10 @@ func DefaultConfig() *Config {
 		HomeDir:  axonHome,
 		CacheDir: filepath.Join(axonHome, "cache"),
 		Registry: RegistryConfig{
-			URL:     "https://registry.axon.mlos.io",
-			Mirrors: []string{},
-			Timeout: 300,
+			URL:               "",
+			Mirrors:           []string{},
+			EnableHuggingFace: true, // Enable HF adapter by default
+			Timeout:           300,
 		},
 		Download: DownloadConfig{
 			Parallel:        3,

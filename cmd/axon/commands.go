@@ -166,13 +166,32 @@ func installCmd() *cobra.Command {
 				return nil
 			}
 
-			// Get manifest
-			client := registry.NewClient(cfg.Registry.URL, cfg.Registry.Mirrors)
-			manifest, err := client.GetManifest(cmd.Context(), namespace, name, version)
+			// Try to find adapter for this model
+			adapterRegistry := registry.NewAdapterRegistry()
+			
+			// Register adapters in priority order
+			// 1. Local registry (if configured)
+			if cfg.Registry.URL != "" {
+				localAdapter := registry.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
+				adapterRegistry.Register(localAdapter)
+			}
+			
+			// 2. Hugging Face (fallback - can handle any model)
+			hfAdapter := registry.NewHuggingFaceAdapter()
+			adapterRegistry.Register(hfAdapter)
+
+			// Find the best adapter
+			adapter, err := adapterRegistry.FindAdapter(namespace, name)
 			if err != nil {
-				fmt.Printf("⚠ Installation not yet fully implemented (registry may not be configured)\n")
-				fmt.Printf("   Model: %s/%s@%s\n", namespace, name, version)
-				return nil
+				return fmt.Errorf("no repository adapter found for %s/%s: %w", namespace, name, err)
+			}
+
+			fmt.Printf("Using %s adapter for %s/%s\n", adapter.Name(), namespace, name)
+
+			// Get manifest
+			manifest, err := adapter.GetManifest(cmd.Context(), namespace, name, version)
+			if err != nil {
+				return fmt.Errorf("failed to get manifest: %w", err)
 			}
 
 			// Download package
@@ -181,11 +200,13 @@ func installCmd() *cobra.Command {
 				if total > 0 {
 					percent := float64(downloaded) / float64(total) * 100
 					fmt.Printf("\rDownloading... %.1f%% (%d/%d bytes)", percent, downloaded, total)
+				} else {
+					fmt.Printf("\rDownloading... %d bytes", downloaded)
 				}
 			}
 
 			fmt.Println("Downloading package...")
-			if err := client.DownloadPackage(cmd.Context(), manifest, tmpFile, progress); err != nil {
+			if err := adapter.DownloadPackage(cmd.Context(), manifest, tmpFile, progress); err != nil {
 				return fmt.Errorf("failed to download package: %w", err)
 			}
 			fmt.Println()
