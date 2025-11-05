@@ -174,6 +174,6 @@ func verifyChecksum(filePath, expectedSHA256 string) error {
 	if expectedSHA256 == "" {
 		return nil // No checksum to verify
 	}
-	
+
 	return utils.VerifySHA256(filePath, expectedSHA256)
 }
