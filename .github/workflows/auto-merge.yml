@@ -45,42 +45,34 @@ jobs:
         gh repo view ${{ github.repository }} > /dev/null 2>&1 && echo "✅ Repository access: OK" || echo "❌ Repository access: FAILED"
         gh pr view ${{ steps.get-pr-number.outputs.pr_number }} > /dev/null 2>&1 && echo "✅ PR access: OK" || echo "❌ PR access: FAILED"
       
-    - name: Check if PR is approved by admin
-      id: check-approval
+    - name: Check if PR creator is admin (for self-approval via /approve)
+      id: check-pr-author
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Get PR reviews and author info
-        REVIEWS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login')
+        # Get PR author info
         PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
         
-        # Check if any admin has approved (include org owners)
+        # Define admin users (org owners and key admins)
         ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
-        APPROVED_BY_ADMIN=false
+        IS_ADMIN_PR=false
         
-        # Check if PR author is an admin (self-approval allowed for admins)
+        # Check if PR author is an admin (self-approval allowed for admins via /approve)
         for admin in "${ADMINS[@]}"; do
           if [ "$PR_AUTHOR" = "$admin" ]; then
-            echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
-            APPROVED_BY_ADMIN=true
+            IS_ADMIN_PR=true
+            echo "PR author $PR_AUTHOR is an admin - self-approval via /approve allowed"
             break
           fi
         done
         
-        # If not self-approved, check for admin reviews
-        if [ "$APPROVED_BY_ADMIN" = "false" ]; then
-          for admin in "${ADMINS[@]}"; do
-            if echo "$REVIEWS" | grep -q "^$admin$"; then
-              APPROVED_BY_ADMIN=true
-              break
-            fi
-          done
-        fi
-        
-        echo "approved_by_admin=$APPROVED_BY_ADMIN" >> $GITHUB_OUTPUT
-        echo "Reviews: $REVIEWS"
+        echo "is_admin_pr=$IS_ADMIN_PR" >> $GITHUB_OUTPUT
         echo "PR Author: $PR_AUTHOR"
-        echo "Approved by admin: $APPROVED_BY_ADMIN"
+        echo "Is admin PR: $IS_ADMIN_PR"
+        
+        # Note: This step is for information only. The actual approval happens
+        # when /approve command is detected, regardless of PR author.
+        # Admins can self-approve their own PRs using /approve command.
         
     - name: Check for /approve command
       id: check-approve-command
