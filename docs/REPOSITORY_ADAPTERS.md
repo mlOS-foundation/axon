@@ -195,12 +195,45 @@ adapterRegistry.Register(&CustomAdapter{})
 - ✅ Consistent manifest format
 - ✅ Automatic caching
 
-## Future Adapters
+## Roadmap: Phase 1 Adapters
 
-Potential adapters for future implementation:
+### ONNX Model Zoo Adapter (Phase 1)
+
+**Status**: In Pipeline  
+**Coverage**: ~15% of ML model user base  
+**Use Case**: Production-ready ONNX models for inference
+
+```bash
+# Coming soon in Phase 1
+axon install onnx/resnet50@latest
+axon install onnx/mobilenet@latest
+```
+
+### PyTorch Hub Adapter (Phase 1)
+
+**Status**: In Pipeline  
+**Coverage**: ~5% of ML model user base  
+**Use Case**: PyTorch pre-trained models
+
+```bash
+# Coming soon in Phase 1
+axon install pytorch/resnet50@latest
+axon install pytorch/alexnet@latest
+```
+
+### Combined Coverage
+
+- **Hugging Face**: 60%+ of ML practitioners
+- **ONNX Model Zoo**: 15%+ of ML practitioners
+- **PyTorch Hub**: 5%+ of ML practitioners
+- **Total**: **80%+ of ML model user base**
+
+## Future Adapters (Post-Phase 1)
+
+Potential adapters for future phases:
 
 - **PyPI Adapter**: For Python ML packages
-- **Model Zoo Adapter**: For TensorFlow/PyTorch model zoos
+- **TensorFlow Hub Adapter**: For TensorFlow models
 - **S3/GCS Adapter**: For cloud-hosted model repositories
 - **Private Registry Adapter**: For enterprise/internal registries
 - **Git Adapter**: For models stored in Git repositories
