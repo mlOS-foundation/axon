@@ -1,3 +1,4 @@
+// Package registry provides adapters for different model registries (Hugging Face, local, etc.).
 package registry
 
 import (

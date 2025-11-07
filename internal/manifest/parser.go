@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mlOS-foundation/axon/pkg/types"
 	"gopkg.in/yaml.v3"
+
+	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
 // Parse parses a YAML manifest file

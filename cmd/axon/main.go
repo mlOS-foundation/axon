@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mlOS-foundation/axon/internal/config"
 	"github.com/spf13/cobra"
+
+	"github.com/mlOS-foundation/axon/internal/config"
 )
 
 var (

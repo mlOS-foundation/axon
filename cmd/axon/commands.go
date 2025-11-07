@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/mlOS-foundation/axon/internal/cache"
 	"github.com/mlOS-foundation/axon/internal/registry"
-	"github.com/spf13/cobra"
 )
 
 // copyFile copies a file from src to dst
