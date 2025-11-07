@@ -50,16 +50,27 @@ echo ""
 
 # 4. Lint check
 echo -e "${BLUE}4. Running golangci-lint...${NC}"
+if ! command -v golangci-lint &> /dev/null; then
+    echo -e "${YELLOW}⚠️  golangci-lint not found, installing v1.64.8...${NC}"
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Failed to install golangci-lint${NC}"
+        FAILED=1
+    fi
+fi
+
 if command -v golangci-lint &> /dev/null; then
+    # Use same config as CI (.golangci.yml)
     if ! golangci-lint run --timeout=5m; then
         echo -e "${RED}❌ golangci-lint failed${NC}"
+        echo -e "${YELLOW}💡 Run 'golangci-lint run' to see detailed errors${NC}"
         FAILED=1
     else
         echo -e "${GREEN}✅ golangci-lint: OK${NC}"
     fi
 else
-    echo -e "${YELLOW}⚠️  golangci-lint not installed, skipping${NC}"
-    echo "   Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+    echo -e "${RED}❌ golangci-lint still not available after installation attempt${NC}"
+    FAILED=1
 fi
 echo ""
 
