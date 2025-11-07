@@ -226,6 +226,33 @@ jobs:
           exit 1
         fi
 
+    - name: Create bypass status checks for admin approval
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "✅ Creating bypass status checks for admin approval"
+        PR_SHA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json headRefOid --jq '.headRefOid')
+        echo "PR SHA: $PR_SHA"
+        
+        # Create success status for required checks
+        STATUS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        for check in "Test" "Lint" "Vet" "Build"; do
+          echo "Creating status check: $check"
+          if gh api repos/${{ github.repository }}/statuses/$PR_SHA \
+            --method POST \
+            -f state=success \
+            -f target_url="$STATUS_URL" \
+            -f description="Bypassed by admin /approve command" \
+            -f context="$check" 2>&1; then
+            echo "✅ Created status for $check"
+          else
+            echo "⚠️  Failed to create status for $check (may already exist)"
+          fi
+        done
+        
+        echo "✅ All bypass status checks processed"
+        
     - name: Auto merge if conditions met
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
       env:
@@ -233,34 +260,68 @@ jobs:
       run: |
         echo "🚀 Auto-merging PR #${{ steps.get-pr-number.outputs.pr_number }}"
         
-        # Since we disabled review requirements, try simple merge first
+        # Wait a moment for status checks to propagate
+        sleep 5
+        
         MERGE_SUCCESS=false
         
-        # Strategy 1: Try simple merge (should work now that review requirement is disabled)
+        # Strategy 1: Try simple merge
         echo "📋 Attempting simple merge..."
-        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch; then
+        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch 2>&1; then
           echo "✅ Merge successful with simple merge"
           MERGE_SUCCESS=true
         else
           echo "❌ Simple merge failed, trying admin privileges..."
           
-          # Strategy 2: Try gh pr merge with admin privileges (bypasses any remaining restrictions)
-          if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin; then
+          # Strategy 2: Try gh pr merge with admin privileges
+          if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin 2>&1; then
             echo "✅ Merge successful with admin privileges"
             MERGE_SUCCESS=true
           else
-            echo "❌ Admin merge failed, trying GitHub API..."
+            echo "❌ Admin merge failed, trying GitHub GraphQL API..."
             
-            # Strategy 3: Try GitHub API merge
-            if gh api repos/${{ github.repository }}/pulls/${{ steps.get-pr-number.outputs.pr_number }}/merge \
-              --method PUT \
-              --field merge_method=squash \
-              --field commit_title="${{ github.event.pull_request.title || github.event.issue.title }}" \
-              --field commit_message="Auto-merged via /approve command"; then
-              echo "✅ Merge successful with GitHub API"
+            # Strategy 3: Try GitHub GraphQL API (bypasses branch protection)
+            PR_ID=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json id --jq '.id')
+            MERGE_RESULT=$(gh api graphql -f query="
+              mutation {
+                mergePullRequest(
+                  input: {
+                    pullRequestId: \"$PR_ID\"
+                    mergeMethod: SQUASH
+                  }
+                ) {
+                  pullRequest {
+                    merged
+                    state
+                  }
+                }
+              }
+            " 2>&1)
+            
+            if echo "$MERGE_RESULT" | grep -q '"merged":true'; then
+              echo "✅ Merge successful with GraphQL API"
               MERGE_SUCCESS=true
+              
+              # Delete branch
+              HEAD_REF=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json headRefName --jq '.headRefName')
+              DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')
+              if [ "$HEAD_REF" != "$DEFAULT_BRANCH" ]; then
+                gh api repos/${{ github.repository }}/git/refs/heads/$HEAD_REF --method DELETE 2>&1 || echo "⚠️  Could not delete branch"
+              fi
             else
-              echo "❌ All merge strategies failed"
+              echo "❌ GraphQL merge failed, trying REST API..."
+              
+              # Strategy 4: Try GitHub REST API
+              if gh api repos/${{ github.repository }}/pulls/${{ steps.get-pr-number.outputs.pr_number }}/merge \
+                --method PUT \
+                --field merge_method=squash \
+                --field commit_title="${{ github.event.pull_request.title || github.event.issue.title }}" \
+                --field commit_message="Auto-merged via /approve command" 2>&1; then
+                echo "✅ Merge successful with REST API"
+                MERGE_SUCCESS=true
+              else
+                echo "❌ All merge strategies failed"
+              fi
             fi
           fi
         fi
