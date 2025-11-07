@@ -384,45 +384,33 @@ jobs:
           echo "can_merge=true" >> $GITHUB_OUTPUT
         fi
         
-    - name: Create approval review for admin
+    - name: Create approval review for admin (if needed)
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "✅ Creating approval review for admin user..."
+        echo "🔍 Checking if approval review is needed..."
         
         PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
+        PR_AUTHOR=$(gh pr view $PR_NUMBER --json author --jq '.author.login')
+        
+        # Check if PR author is in bypass list
+        BYPASS_USERS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '[.required_pull_request_reviews.bypass_pull_request_allowances.users[]?.login // empty]' 2>/dev/null || echo "[]")
+        IN_BYPASS_LIST=$(echo "$BYPASS_USERS" | jq -r --arg author "$PR_AUTHOR" 'map(select(. == $author)) | length > 0')
         
         # Check if approval review already exists
         EXISTING_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
         
         if [ -n "$EXISTING_REVIEW" ]; then
           echo "✅ Approval review already exists from: $EXISTING_REVIEW"
+        elif [ "$IN_BYPASS_LIST" = "true" ]; then
+          echo "✅ PR author is in bypass list - review not needed, will merge directly"
         else
-          # Create approval review using GitHub REST API
-          # This creates a review as the GitHub Actions bot (which has write access)
-          echo "Creating approval review via GitHub API..."
-          
-          REVIEW_RESULT=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
-            --method POST \
-            --field event=APPROVE \
-            --field body="Auto-approved via /approve command (admin only)" 2>&1)
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ Approval review created successfully"
-          else
-            echo "⚠️  Could not create approval review: $REVIEW_RESULT"
-            # Try alternative: use gh pr review command
-            if gh pr review $PR_NUMBER --approve --body "Auto-approved via /approve command" 2>&1; then
-              echo "✅ Approval review created via gh CLI"
-            else
-              echo "❌ Failed to create approval review - merge may fail"
-            fi
-          fi
-          
-          # Wait for review to propagate
-          echo "⏳ Waiting for review to propagate..."
-          sleep 5
+          # PR author is admin but not in bypass list - need to create review
+          # But can't self-approve, so we'll skip and rely on admin merge privileges
+          echo "⚠️  PR author is admin but cannot self-approve"
+          echo "⚠️  Will attempt merge with admin privileges (bypass should work)"
+          echo "ℹ️  Note: If merge fails, consider adding PR author to bypass list"
         fi
         
     - name: Auto merge if conditions met
