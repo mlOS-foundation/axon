@@ -1,151 +1,92 @@
 # Contributing to Axon
 
-Thank you for your interest in contributing to Axon! This document provides guidelines and instructions for contributing.
-
-## Code of Conduct
-
-By participating in this project, you agree to abide by our Code of Conduct. We are committed to providing a welcoming and inclusive environment.
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.21 or later
-- Git
-- Make (optional)
-
-### Development Setup
-
-1. Fork and clone the repository:
-   ```bash
-   git clone https://github.com/mlOS-foundation/axon.git
-   cd axon
-   ```
-
-2. Install dependencies:
-   ```bash
-   make deps
-   ```
-
-3. Build the project:
-   ```bash
-   make build
-   ```
-
-4. Run tests:
-   ```bash
-   make test
-   ```
+Thank you for contributing to Axon! This document provides guidelines and instructions for contributing.
 
 ## Development Workflow
 
-1. Create a feature branch from `main`:
+### Before Pushing PR Updates
+
+Always run validation checks before pushing PR updates:
+
+```bash
+# Option 1: Use the validation script
+./validate-pr.sh
+
+# Option 2: Use Makefile target
+make validate-pr
+
+# Option 3: Run checks individually
+make fmt-check  # Check formatting
+make vet        # Run go vet
+make lint       # Run linters
+make test       # Run tests
+make build      # Build binary
+```
+
+### Validation Checks
+
+The validation script runs:
+1. **Code Formatting** (`go fmt`) - Ensures code follows Go formatting standards
+2. **go vet** - Static analysis for common mistakes
+3. **golangci-lint** - Comprehensive linting (if installed)
+4. **Tests** - Runs all unit tests with coverage
+5. **Build** - Verifies the code compiles successfully
+
+### Quick Commands
+
+```bash
+# Format code
+make fmt
+
+# Run tests
+make test
+
+# Run all CI checks
+make ci
+
+# Validate before PR
+make validate-pr
+```
+
+## Pull Request Process
+
+1. **Create a branch** from `main`
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
-2. Make your changes following our coding standards
-
-3. Write or update tests as needed
-
-4. Ensure all tests pass:
+2. **Make your changes** and commit
    ```bash
-   make test
+   git add .
+   git commit -m "feat: Add your feature"
    ```
 
-5. Run linters:
+3. **Run validation** before pushing
    ```bash
-   make lint
+   make validate-pr
    ```
 
-6. Format your code:
+4. **Push and create PR**
    ```bash
-   make fmt
+   git push origin feature/your-feature-name
+   gh pr create --title "feat: Add your feature" --body "Description"
    ```
 
-7. Commit your changes with clear messages:
-   ```bash
-   git commit -m "Add feature: description of changes"
-   ```
+5. **Wait for CI** - GitHub Actions will run the same checks
 
-8. Push to your fork and create a Pull Request
+6. **Address feedback** - If CI fails, fix issues and push again
 
-## Coding Standards
+## Code Standards
 
-### Go Style
+- **Formatting**: Code must be formatted with `go fmt`
+- **Linting**: Must pass `golangci-lint` checks
+- **Testing**: New features should include tests
+- **Documentation**: Update README/docs as needed
 
-- Follow [Effective Go](https://go.dev/doc/effective_go) guidelines
-- Use `gofmt` for formatting (run `make fmt`)
-- Keep functions focused and small
-- Write clear, descriptive comments for exported functions
+## Getting Help
 
-### Naming Conventions
+- Open an issue for questions or bugs
+- Check existing issues before creating new ones
+- Be respectful and constructive in discussions
 
-- Use neural metaphors where appropriate (see Brand Guidelines)
-- Commands should be clear and intuitive
-- Internal packages should be in `internal/`
-- Public APIs should be in `pkg/`
-
-### Code Organization
-
-```
-axon/
-├── cmd/axon/         # CLI entry point
-├── internal/         # Internal packages (not exported)
-│   ├── cache/        # Cache management
-│   ├── config/       # Configuration
-│   ├── manifest/     # Manifest parsing
-│   ├── registry/     # Registry client
-│   ├── model/        # Model handling
-│   └── ui/           # CLI UI
-├── pkg/              # Public packages
-│   ├── types/        # Public types
-│   └── utils/        # Utilities
-└── test/             # Tests
-```
-
-## Testing
-
-- Write unit tests for all new functionality
-- Aim for >80% code coverage
-- Use table-driven tests where appropriate
-- Test error cases, not just happy paths
-
-## Pull Request Process
-
-1. Update documentation if needed
-2. Add tests for new functionality
-3. Ensure all CI checks pass
-4. Request review from maintainers
-5. Address feedback promptly
-
-### PR Title Format
-
-```
-Type: Brief description
-
-Examples:
-- feat: Add manifest validation
-- fix: Fix cache cleanup bug
-- docs: Update README with examples
-- refactor: Simplify registry client
-```
-
-## Project Roadmap
-
-See [MVP_STATUS.md](MVP_STATUS.md) for the current project status and completed features.
-
-Current focus areas:
-- ✅ Core types and configuration (Complete)
-- ✅ Cache manager and registry client (Complete)
-- ✅ CLI commands implementation (Complete)
-- 🔄 Registry integration and package extraction (In Progress)
-
-## Questions?
-
-- Open an issue for bug reports or feature requests
-- Join our Discord: https://discord.gg/mlos
-- Check existing issues and discussions
-
-Thank you for contributing to Axon! 🧠⚡
-
+Thank you for contributing! 🚀
