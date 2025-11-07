@@ -83,12 +83,33 @@ install_axon() {
     
     echo "${BLUE}⬇️  Downloading Axon from GitHub...${NC}"
     
-    # Download the release
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$FILENAME"; then
-        echo "${RED}❌ Error: Failed to download Axon${NC}" >&2
-        echo "${YELLOW}   URL: $DOWNLOAD_URL${NC}" >&2
-        echo "${YELLOW}   Please check if the release exists on GitHub${NC}" >&2
-        exit 1
+    # Try to download with expected filename first
+    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$FILENAME" 2>/dev/null; then
+        # Fallback: List release assets and find matching one
+        echo "${YELLOW}⚠️  Asset not found with expected name, searching release assets...${NC}" >&2
+        ASSETS_JSON=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${TAG}")
+        
+        # Try to find a matching asset
+        MATCHING_ASSET=$(echo "$ASSETS_JSON" | grep -o "\"browser_download_url\":[^,]*" | grep -i "${OS}.*${ARCH}\|${ARCH}.*${OS}" | head -1 | cut -d'"' -f4)
+        
+        if [ -z "$MATCHING_ASSET" ]; then
+            # Last resort: try generic name (for v1.0.0 with broken naming)
+            FALLBACK_URL="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/axon___.tar.gz"
+            if curl -fsSL "$FALLBACK_URL" -o "$TMP_DIR/$FILENAME" 2>/dev/null; then
+                echo "${YELLOW}⚠️  Using fallback asset name${NC}" >&2
+                DOWNLOAD_URL="$FALLBACK_URL"
+            else
+                echo "${RED}❌ Error: Failed to download Axon${NC}" >&2
+                echo "${YELLOW}   Tried: $DOWNLOAD_URL${NC}" >&2
+                echo "${YELLOW}   Please check if the release exists on GitHub${NC}" >&2
+                echo "${YELLOW}   Release: https://github.com/${GITHUB_REPO}/releases/tag/${TAG}${NC}" >&2
+                exit 1
+            fi
+        else
+            echo "${YELLOW}⚠️  Using alternative asset: $MATCHING_ASSET${NC}" >&2
+            curl -fsSL "$MATCHING_ASSET" -o "$TMP_DIR/$FILENAME"
+            DOWNLOAD_URL="$MATCHING_ASSET"
+        fi
     fi
     
     echo "${BLUE}📦 Extracting...${NC}"
