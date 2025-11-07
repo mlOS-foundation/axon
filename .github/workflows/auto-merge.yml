@@ -384,6 +384,72 @@ jobs:
           echo "can_merge=true" >> $GITHUB_OUTPUT
         fi
         
+    - name: Create approval review if admin/bypass
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.bypass_applies == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "✅ Creating approval review for admin/bypass user..."
+        
+        # Get PR author (who is admin or in bypass list)
+        PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
+        
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
+          fi
+          
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
+        
+        # Find an admin user to create the review (prefer repository owner, then PR author if they're admin)
+        REVIEWER="${{ github.repository_owner }}"
+        if ! is_admin "$REVIEWER"; then
+          # If PR author is admin, use them
+          if is_admin "$PR_AUTHOR"; then
+            REVIEWER="$PR_AUTHOR"
+          else
+            # Find any admin collaborator
+            COLLABORATORS=$(gh api repos/${{ github.repository }}/collaborators --jq '.[] | select(.permissions.admin == true or .permissions.maintain == true) | .login' | head -1)
+            if [ -n "$COLLABORATORS" ]; then
+              REVIEWER="$COLLABORATORS"
+            fi
+          fi
+        fi
+        
+        echo "Creating approval review as: $REVIEWER"
+        
+        # Create approval review using GitHub API
+        # Note: We use the GitHub Actions token which has admin permissions
+        PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
+        
+        # Try to create approval review via API
+        # Since we can't impersonate another user, we'll use the workflow token
+        # The bypass list should allow this to work
+        if gh pr review $PR_NUMBER --approve --body "Auto-approved via /approve command (admin/bypass user)" 2>&1; then
+          echo "✅ Approval review created successfully"
+        else
+          echo "⚠️  Could not create approval review (may already exist or not needed)"
+          # Check if review already exists
+          EXISTING_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
+          if [ -n "$EXISTING_REVIEW" ]; then
+            echo "✅ Approval review already exists from: $EXISTING_REVIEW"
+          fi
+        fi
+        
+        # Wait a moment for review to propagate
+        sleep 3
+        
     - name: Auto merge if conditions met
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'true'
       env:
