@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   test:
     name: Test
@@ -128,6 +132,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: always()
+    permissions:
+      contents: read
+      statuses: write
     
     steps:
     - name: Checkout code
@@ -136,6 +143,7 @@ jobs:
     - name: Report Build Status
       uses: actions/github-script@v7
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           // For matrix jobs, check if the overall job succeeded
           // If any matrix job failed, needs.build.result will be 'failure'
@@ -145,15 +153,25 @@ jobs:
             ? 'All builds completed successfully' 
             : 'One or more builds failed';
           
-          await github.rest.repos.createCommitStatus({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            sha: context.sha,
-            state: status,
-            context: 'Build',
-            description: description,
-            target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-          });
+          try {
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: status,
+              context: 'Build',
+              description: description,
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+            console.log(`✅ Build status reported: ${status}`);
+          } catch (error) {
+            console.error('⚠️  Failed to create commit status:', error.message);
+            // Don't fail the job if status creation fails
+            if (error.status !== 403) {
+              throw error;
+            }
+            console.log('⚠️  Status creation requires statuses:write permission');
+          }
 
   security:
     name: Security Scan

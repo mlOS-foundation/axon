@@ -80,31 +80,46 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
+          fi
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
+        
         # Get PR reviews and author info
         REVIEWS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login')
         PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
         
-        # Check if any admin has approved
-        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
         APPROVED_BY_ADMIN=false
         
         # Check if PR author is an admin (self-approval allowed for admins)
-        for admin in "${ADMINS[@]}"; do
-          if [ "$PR_AUTHOR" = "$admin" ]; then
-            echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
-            APPROVED_BY_ADMIN=true
+        if is_admin "$PR_AUTHOR"; then
+          echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
+          APPROVED_BY_ADMIN=true
+        else
+          # Check if any reviewer is an admin
+          while IFS= read -r reviewer; do
+            if [ -n "$reviewer" ] && is_admin "$reviewer"; then
+              echo "Reviewer $reviewer is an admin"
+              APPROVED_BY_ADMIN=true
             break
           fi
-        done
-        
-        # If not self-approved, check for admin reviews
-        if [ "$APPROVED_BY_ADMIN" = "false" ]; then
-          for admin in "${ADMINS[@]}"; do
-            if echo "$REVIEWS" | grep -q "^$admin$"; then
-              APPROVED_BY_ADMIN=true
-              break
-            fi
-          done
+          done <<< "$REVIEWS"
         fi
         
         echo "approved_by_admin=$APPROVED_BY_ADMIN" >> $GITHUB_OUTPUT
@@ -117,30 +132,50 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Define admin users (same as in approval check)
-        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
-        
-        # Build regex pattern for admin users
-        ADMIN_PATTERN=""
-        for admin in "${ADMINS[@]}"; do
-          if [ -z "$ADMIN_PATTERN" ]; then
-            ADMIN_PATTERN="^$admin$"
-          else
-            ADMIN_PATTERN="$ADMIN_PATTERN|^$admin$"
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
           fi
-        done
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
         
-        # Get PR comments from admin users only
-        COMMENTS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq ".comments[] | select(.author.login | test(\"$ADMIN_PATTERN\")) | .body")
+        # Get all PR comments with author info
+        COMMENTS_JSON=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq '.comments[] | {author: .author.login, body: .body}')
         
-        # Check for /approve command
-        if echo "$COMMENTS" | grep -q "/approve"; then
+        # Check each comment to see if it's from an admin and contains /approve
+        APPROVE_FOUND=false
+        while IFS= read -r comment; do
+          AUTHOR=$(echo "$comment" | jq -r '.author')
+          BODY=$(echo "$comment" | jq -r '.body')
+          
+          if is_admin "$AUTHOR" && echo "$BODY" | grep -q "/approve"; then
+            echo "Found /approve command from admin: $AUTHOR"
+            APPROVE_FOUND=true
+            break
+          fi
+        done <<< "$COMMENTS_JSON"
+        
+        if [ "$APPROVE_FOUND" = "true" ]; then
           echo "approve_command_found=true" >> $GITHUB_OUTPUT
         else
           echo "approve_command_found=false" >> $GITHUB_OUTPUT
         fi
         
-        echo "Comments with /approve: $(echo "$COMMENTS" | grep "/approve" || echo "None")"
+        echo "Comments with /approve from admins: $(echo "$COMMENTS_JSON" | jq -r 'select(.body | contains("/approve")) | "\(.author): \(.body)"' || echo "None")"
         
     - name: Check CI status
       id: check-ci
@@ -264,8 +299,94 @@ jobs:
         
         echo "✅ All bypass status checks processed"
         
-    - name: Auto merge if conditions met
+    - name: Check if PR is mergeable
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
+      id: check-mergeable
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔍 Checking if PR is mergeable..."
+        PR_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus,reviewDecision,author --jq '{mergeable: .mergeable, status: .mergeStateStatus, reviewDecision: .reviewDecision, author: .author.login}')
+        MERGEABLE=$(echo "$PR_INFO" | jq -r '.mergeable // "UNKNOWN"')
+        MERGE_STATUS=$(echo "$PR_INFO" | jq -r '.status // "UNKNOWN"')
+        REVIEW_DECISION=$(echo "$PR_INFO" | jq -r '.reviewDecision // "null"')
+        PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author // "unknown"')
+        
+        echo "Mergeable: $MERGEABLE"
+        echo "Merge Status: $MERGE_STATUS"
+        echo "Review Decision: $REVIEW_DECISION"
+        echo "PR Author: $PR_AUTHOR"
+        
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
+          fi
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
+        
+        # Check if PR author is in bypass list OR is an admin
+        BYPASS_USERS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '[.required_pull_request_reviews.bypass_pull_request_allowances.users[]?.login // empty]' 2>/dev/null || echo "[]")
+        IN_BYPASS_LIST=$(echo "$BYPASS_USERS" | jq -r --arg author "$PR_AUTHOR" 'map(select(. == $author)) | length > 0')
+        IS_AUTHOR_ADMIN=false
+        if is_admin "$PR_AUTHOR"; then
+          IS_AUTHOR_ADMIN=true
+        fi
+        
+        echo "Bypass list users: $BYPASS_USERS"
+        echo "Author in bypass list: $IN_BYPASS_LIST"
+        echo "Author is admin: $IS_AUTHOR_ADMIN"
+        
+        # If author is in bypass list OR is an admin, they can bypass review requirement
+        if [ "$IN_BYPASS_LIST" = "true" ] || [ "$IS_AUTHOR_ADMIN" = "true" ]; then
+          if [ "$IN_BYPASS_LIST" = "true" ]; then
+            echo "✅ PR author is in bypass list - review requirement can be bypassed"
+          else
+            echo "✅ PR author is an admin - review requirement can be bypassed"
+          fi
+          # Even if mergeable is false, we can try to merge (bypass will apply)
+          echo "can_merge=true" >> $GITHUB_OUTPUT
+          echo "bypass_applies=true" >> $GITHUB_OUTPUT
+        # Check if blocked by review requirement
+        elif [ "$MERGEABLE" = "false" ] || [ "$MERGE_STATUS" = "BLOCKED" ]; then
+          # Check branch protection
+          ENFORCE_ADMINS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.enforce_admins.enabled // false' 2>/dev/null || echo "false")
+          
+          if [ "$ENFORCE_ADMINS" = "true" ]; then
+            echo "⚠️  PR is blocked: 'Enforce admins' is enabled in branch protection"
+            echo "⚠️  Cannot merge even with admin /approve command"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=enforce_admins" >> $GITHUB_OUTPUT
+          elif [ "$REVIEW_DECISION" = "REVIEW_REQUIRED" ] || [ "$REVIEW_DECISION" = "CHANGES_REQUESTED" ]; then
+            echo "⚠️  PR is blocked: Review requirement not satisfied"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=review_required" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  PR is blocked: $MERGE_STATUS"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=unknown" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "✅ PR appears mergeable"
+          echo "can_merge=true" >> $GITHUB_OUTPUT
+        fi
+        
+        
+    - name: Auto merge if conditions met
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
@@ -360,6 +481,23 @@ jobs:
           else
             gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
           fi
+        fi
+        
+    - name: Comment if merge blocked
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'false'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "⚠️  PR is blocked from merging"
+        
+        BLOCK_REASON="${{ steps.check-mergeable.outputs.block_reason }}"
+        
+        if [ "$BLOCK_REASON" = "enforce_admins" ]; then
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked: 'Enforce admins' is enabled**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection has \"Do not allow bypassing the above settings\" (enforce_admins) enabled, which prevents admins from bypassing review requirements.\n\n**Solution:** Disable 'Enforce admins' in branch protection:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. **Uncheck** \"Do not allow bypassing the above settings\"\n3. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\n**Note:** By default, GitHub allows admins to bypass branch protection. The \"Enforce admins\" setting overrides this default behavior."
+        elif [ "$BLOCK_REASON" = "review_required" ]; then
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked: Review requirement not satisfied**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection requires an approving review, but GitHub doesn't allow self-approval.\n\n**Solution:** Configure branch protection to allow admins to bypass review requirement:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\nAlternatively, have another team member approve the PR."
+        else
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked**\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** PR is not mergeable due to branch protection settings.\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
         fi
         
     - name: Comment if conditions not met

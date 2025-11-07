@@ -52,12 +52,16 @@ jobs:
           chmod +x build/axon
 
       - name: Create archive
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
         run: |
           ARCHIVE_NAME="axon_${VERSION}_${GOOS}_${GOARCH}.tar.gz"
           cd build
           tar -czf "../${ARCHIVE_NAME}" axon
           cd ..
           echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "Created archive: ${ARCHIVE_NAME}"
 
       - name: Generate checksum
         run: |
@@ -98,9 +102,15 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          find artifacts -name "*.tar.gz" -exec cp {} release/ \;
-          find artifacts -name "*.sha256" -exec cp {} release/ \;
+          # Copy artifacts preserving their original names
+          # Artifacts are in subdirectories like artifacts/linux-amd64/axon_1.0.0_linux_amd64.tar.gz
+          find artifacts -type f -name "*.tar.gz" -exec cp {} release/ \;
+          find artifacts -type f -name "*.sha256" -exec cp {} release/ \;
+          echo "Release assets prepared:"
           ls -lh release/
+          echo ""
+          echo "Asset names:"
+          ls -1 release/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
