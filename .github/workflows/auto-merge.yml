@@ -271,17 +271,32 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "🔍 Checking if PR is mergeable..."
-        PR_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus,reviewDecision --jq '{mergeable: .mergeable, status: .mergeStateStatus, reviewDecision: .reviewDecision}')
+        PR_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus,reviewDecision,author --jq '{mergeable: .mergeable, status: .mergeStateStatus, reviewDecision: .reviewDecision, author: .author.login}')
         MERGEABLE=$(echo "$PR_INFO" | jq -r '.mergeable // "UNKNOWN"')
         MERGE_STATUS=$(echo "$PR_INFO" | jq -r '.status // "UNKNOWN"')
         REVIEW_DECISION=$(echo "$PR_INFO" | jq -r '.reviewDecision // "null"')
+        PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author // "unknown"')
         
         echo "Mergeable: $MERGEABLE"
         echo "Merge Status: $MERGE_STATUS"
         echo "Review Decision: $REVIEW_DECISION"
+        echo "PR Author: $PR_AUTHOR"
         
+        # Check if PR author is in bypass list
+        BYPASS_USERS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '[.required_pull_request_reviews.bypass_pull_request_allowances.users[]?.login // empty]' 2>/dev/null || echo "[]")
+        IN_BYPASS_LIST=$(echo "$BYPASS_USERS" | jq -r --arg author "$PR_AUTHOR" 'map(select(. == $author)) | length > 0')
+        
+        echo "Bypass list users: $BYPASS_USERS"
+        echo "Author in bypass list: $IN_BYPASS_LIST"
+        
+        # If author is in bypass list, they can bypass review requirement
+        if [ "$IN_BYPASS_LIST" = "true" ]; then
+          echo "✅ PR author is in bypass list - review requirement can be bypassed"
+          # Even if mergeable is false, we can try to merge (bypass will apply)
+          echo "can_merge=true" >> $GITHUB_OUTPUT
+          echo "bypass_applies=true" >> $GITHUB_OUTPUT
         # Check if blocked by review requirement
-        if [ "$MERGEABLE" = "false" ] || [ "$MERGE_STATUS" = "BLOCKED" ]; then
+        elif [ "$MERGEABLE" = "false" ] || [ "$MERGE_STATUS" = "BLOCKED" ]; then
           # Check branch protection
           ENFORCE_ADMINS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.enforce_admins.enabled // false' 2>/dev/null || echo "false")
           
