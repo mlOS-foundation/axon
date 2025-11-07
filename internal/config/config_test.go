@@ -26,14 +26,14 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestConfigPath(t *testing.T) {
-	path := ConfigPath()
+	path := Path()
 	if path == "" {
-		t.Error("ConfigPath() should not be empty")
+		t.Error("Path() should not be empty")
 	}
 
 	// Should contain .axon
 	if !filepath.IsAbs(path) {
-		t.Error("ConfigPath() should return absolute path")
+		t.Error("Path() should return absolute path")
 	}
 }
 
@@ -60,8 +60,10 @@ func TestSave(t *testing.T) {
 	oldHome, _ := os.UserHomeDir()
 
 	// Override home directory for test
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", oldHome)
+	}()
 
 	cfg := DefaultConfig()
 	if err := cfg.Save(); err != nil {

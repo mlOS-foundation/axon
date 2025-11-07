@@ -1,3 +1,4 @@
+// Package types defines the core data structures for Axon model manifests and metadata.
 package types
 
 import "time"

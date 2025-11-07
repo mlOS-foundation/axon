@@ -1,3 +1,4 @@
+// Package registry provides adapters for different model registries (Hugging Face, local, etc.).
 package registry
 
 import (
@@ -71,15 +72,18 @@ func (h *HuggingFaceAdapter) SetToken(token string) {
 	h.token = token
 }
 
+// Name returns the name of the adapter.
 func (h *HuggingFaceAdapter) Name() string {
 	return "huggingface"
 }
 
+// CanHandle returns true if this adapter can handle the given namespace and name.
 func (h *HuggingFaceAdapter) CanHandle(namespace, name string) bool {
 	// Hugging Face can handle any model - it's a fallback/default
 	return true
 }
 
+// Search searches for models matching the query.
 func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.SearchResult, error) {
 	// Use Hugging Face API to search
 	url := fmt.Sprintf("%s/api/models?search=%s", h.baseURL, query)
@@ -98,7 +102,9 @@ func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -113,6 +119,7 @@ func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.
 	return results, nil
 }
 
+// GetManifest retrieves the manifest for the specified model.
 func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, version string) (*types.Manifest, error) {
 	// For Hugging Face, we generate a manifest on-the-fly
 	// In production, this would fetch model metadata from HF API
@@ -195,6 +202,7 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 	return manifest, nil
 }
 
+// DownloadPackage downloads the model package to the specified destination path.
 func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *types.Manifest, destPath string, progress ProgressCallback) error {
 	// For Hugging Face, we download model files in real-time and create a package
 	hfModelID := manifest.Metadata.Name
@@ -207,7 +215,9 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// First, try to get model file list from Hugging Face API
 	modelFiles, err := h.getModelFiles(ctx, hfModelID)
@@ -233,19 +243,21 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 
 		resp, err := h.httpClient.Do(req)
 		if err != nil || resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 			continue // Skip missing files
 		}
 
 		filePath := filepath.Join(tempDir, file)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
 		outFile, err := os.Create(filePath)
 		if err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
@@ -258,13 +270,13 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 		}
 
 		if _, err := io.Copy(outFile, reader); err != nil {
-			outFile.Close()
-			resp.Body.Close()
+			_ = outFile.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
-		outFile.Close()
-		resp.Body.Close()
+		_ = outFile.Close()
+		_ = resp.Body.Close()
 		downloadedFiles = append(downloadedFiles, file)
 	}
 
@@ -305,7 +317,9 @@ func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -341,13 +355,19 @@ func (h *HuggingFaceAdapter) createAxonPackage(srcDir, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create package file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
+	defer func() {
+		_ = gzWriter.Close()
+	}()
 
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
+	defer func() {
+		_ = tarWriter.Close()
+	}()
 
 	// Walk directory and add files to tar
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
@@ -382,7 +402,9 @@ func (h *HuggingFaceAdapter) createAxonPackage(srcDir, destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
+		defer func() {
+			_ = srcFile.Close()
+		}()
 
 		if _, err := io.Copy(tarWriter, srcFile); err != nil {
 			return err
@@ -399,7 +421,9 @@ func (h *HuggingFaceAdapter) updateManifestWithChecksum(manifest *types.Manifest
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if _, err := io.Copy(hasher, file); err != nil {
 		return err
@@ -428,10 +452,12 @@ func NewLocalRegistryAdapter(baseURL string, mirrors []string) *LocalRegistryAda
 	}
 }
 
+// Name returns the name of the adapter.
 func (l *LocalRegistryAdapter) Name() string {
 	return "local"
 }
 
+// CanHandle returns true if this adapter can handle the given namespace and name.
 func (l *LocalRegistryAdapter) CanHandle(namespace, name string) bool {
 	// Local registry can only handle models that are NOT from Hugging Face
 	// Hugging Face models use 'hf/' namespace - let HF adapter handle those
@@ -442,14 +468,17 @@ func (l *LocalRegistryAdapter) CanHandle(namespace, name string) bool {
 	return l.client.baseURL != ""
 }
 
+// Search searches for models matching the query.
 func (l *LocalRegistryAdapter) Search(ctx context.Context, query string) ([]types.SearchResult, error) {
 	return l.client.Search(ctx, query)
 }
 
+// GetManifest retrieves the manifest for the specified model.
 func (l *LocalRegistryAdapter) GetManifest(ctx context.Context, namespace, name, version string) (*types.Manifest, error) {
 	return l.client.GetManifest(ctx, namespace, name, version)
 }
 
+// DownloadPackage downloads the model package to the specified destination path.
 func (l *LocalRegistryAdapter) DownloadPackage(ctx context.Context, manifest *types.Manifest, destPath string, progress ProgressCallback) error {
 	return l.client.DownloadPackage(ctx, manifest, destPath, progress)
 }

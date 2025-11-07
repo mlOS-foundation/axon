@@ -1,3 +1,4 @@
+// Package cache provides functionality for managing the local model cache.
 package cache
 
 import (
@@ -134,14 +135,33 @@ func (cm *Manager) ListCachedModels() ([]CachedModel, error) {
 			return err
 		}
 
+		// Skip directories, only process files
 		if info.IsDir() {
 			return nil
 		}
 
+		// Look for metadata files
 		if info.Name() == ".axon_metadata.json" {
-			relPath, _ := filepath.Rel(modelsDir, path)
-			parts := filepath.SplitList(relPath)
-			if len(parts) >= 3 {
+			// Get relative path from modelsDir
+			relPath, err := filepath.Rel(modelsDir, filepath.Dir(path))
+			if err != nil {
+				return err
+			}
+
+			// Split path by filepath separator (works cross-platform)
+			// Expected structure: namespace/name/version
+			parts := []string{}
+			dir := relPath
+			for dir != "." && dir != "" {
+				base := filepath.Base(dir)
+				if base != "" {
+					parts = append([]string{base}, parts...)
+				}
+				dir = filepath.Dir(dir)
+			}
+
+			// Should have exactly 3 parts: namespace, name, version
+			if len(parts) == 3 {
 				models = append(models, CachedModel{
 					Namespace: parts[0],
 					Name:      parts[1],

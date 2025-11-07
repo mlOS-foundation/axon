@@ -1,3 +1,4 @@
+// Package config provides configuration management for Axon CLI.
 package config
 
 import (
@@ -81,15 +82,15 @@ func DefaultConfig() *Config {
 	}
 }
 
-// ConfigPath returns the path to the config file
-func ConfigPath() string {
+// Path returns the path to the Axon configuration file.
+func Path() string {
 	homeDir, _ := os.UserHomeDir()
 	return filepath.Join(homeDir, ".axon", "config.yaml")
 }
 
 // Load loads configuration from file
 func Load() (*Config, error) {
-	cfgPath := ConfigPath()
+	cfgPath := Path()
 
 	// Check if config file exists
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
@@ -113,7 +114,7 @@ func Load() (*Config, error) {
 
 // Save saves configuration to file
 func (c *Config) Save() error {
-	cfgPath := ConfigPath()
+	cfgPath := Path()
 	cfgDir := filepath.Dir(cfgPath)
 
 	// Create directory if it doesn't exist

@@ -1,3 +1,4 @@
+// Package utils provides utility functions for file hashing and verification.
 package utils
 
 import (
@@ -14,7 +15,9 @@ func ComputeSHA256(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {

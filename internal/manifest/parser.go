@@ -1,11 +1,13 @@
+// Package manifest provides functionality for parsing and validating model manifests.
 package manifest
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/mlOS-foundation/axon/pkg/types"
 	"gopkg.in/yaml.v3"
+
+	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
 // Parse parses a YAML manifest file

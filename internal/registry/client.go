@@ -45,7 +45,9 @@ func (c *Client) Search(ctx context.Context, query string) ([]types.SearchResult
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -72,7 +74,9 @@ func (c *Client) GetManifest(ctx context.Context, namespace, name, version strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -119,7 +123,9 @@ func (c *Client) downloadFromURL(ctx context.Context, url, destPath, expectedSHA
 	if err != nil {
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -129,7 +135,9 @@ func (c *Client) downloadFromURL(ctx context.Context, url, destPath, expectedSHA
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := &progressReader{
 		Reader:   resp.Body,

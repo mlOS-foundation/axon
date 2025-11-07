@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
 

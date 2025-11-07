@@ -1,15 +1,40 @@
+// Package main provides the Axon CLI commands.
 package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/mlOS-foundation/axon/internal/cache"
 	"github.com/mlOS-foundation/axon/internal/registry"
-	"github.com/spf13/cobra"
 )
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = sourceFile.Close()
+	}()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = destFile.Close()
+	}()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
+}
 
 // parseModelSpec parses a model specification string (namespace/name[@version])
 func parseModelSpec(spec string) (namespace, name, version string) {
@@ -203,8 +228,10 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("failed to get manifest: %w", err)
 			}
 
-			// Download package
+			// Download package to temp location first
 			tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("%s-%s-%s.axon", namespace, name, version))
+			fmt.Printf("📦 Package will be created at: %s\n", tmpFile)
+
 			progress := func(downloaded, total int64) {
 				if total > 0 {
 					percent := float64(downloaded) / float64(total) * 100
@@ -220,10 +247,29 @@ func installCmd() *cobra.Command {
 			}
 			fmt.Println()
 
-			// Cache model
+			// Verify package was created
+			if stat, err := os.Stat(tmpFile); err == nil {
+				fmt.Printf("✓ Package created: %s (size: %d bytes)\n", tmpFile, stat.Size())
+			}
+
+			// Cache model (saves manifest and metadata, and moves package to cache)
+			cachePath := cacheMgr.GetModelPath(namespace, name, version)
+			fmt.Printf("📁 Cache directory: %s\n", cachePath)
+
 			if err := cacheMgr.CacheModel(namespace, name, version, manifest); err != nil {
 				return fmt.Errorf("failed to cache model: %w", err)
 			}
+
+			// Move package from temp to cache
+			cachePackagePath := filepath.Join(cachePath, filepath.Base(tmpFile))
+			if err := os.Rename(tmpFile, cachePackagePath); err != nil {
+				// If rename fails (cross-device), try copy
+				if err := copyFile(tmpFile, cachePackagePath); err != nil {
+					return fmt.Errorf("failed to move package to cache: %w", err)
+				}
+				_ = os.Remove(tmpFile) // Clean up temp file after copy
+			}
+			fmt.Printf("✓ Package moved to cache: %s\n", cachePackagePath)
 
 			fmt.Printf("\n✓ Successfully propagated %s/%s@%s\n", namespace, name, version)
 			return nil
