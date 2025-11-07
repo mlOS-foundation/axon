@@ -225,7 +225,7 @@ func installCmd() *cobra.Command {
 			// Download package to temp location first
 			tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("%s-%s-%s.axon", namespace, name, version))
 			fmt.Printf("📦 Package will be created at: %s\n", tmpFile)
-			
+
 			progress := func(downloaded, total int64) {
 				if total > 0 {
 					percent := float64(downloaded) / float64(total) * 100
@@ -240,7 +240,7 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("failed to download package: %w", err)
 			}
 			fmt.Println()
-			
+
 			// Verify package was created
 			if stat, err := os.Stat(tmpFile); err == nil {
 				fmt.Printf("✓ Package created: %s (size: %d bytes)\n", tmpFile, stat.Size())
@@ -249,11 +249,11 @@ func installCmd() *cobra.Command {
 			// Cache model (saves manifest and metadata, and moves package to cache)
 			cachePath := cacheMgr.GetModelPath(namespace, name, version)
 			fmt.Printf("📁 Cache directory: %s\n", cachePath)
-			
+
 			if err := cacheMgr.CacheModel(namespace, name, version, manifest); err != nil {
 				return fmt.Errorf("failed to cache model: %w", err)
 			}
-			
+
 			// Move package from temp to cache
 			cachePackagePath := filepath.Join(cachePath, filepath.Base(tmpFile))
 			if err := os.Rename(tmpFile, cachePackagePath); err != nil {
