@@ -60,8 +60,10 @@ func TestSave(t *testing.T) {
 	oldHome, _ := os.UserHomeDir()
 
 	// Override home directory for test
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", oldHome)
+	}()
 
 	cfg := DefaultConfig()
 	if err := cfg.Save(); err != nil {

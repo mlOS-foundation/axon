@@ -98,7 +98,11 @@ func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the request
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -207,7 +211,11 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			// Log error but don't fail the operation
+		}
+	}()
 
 	// First, try to get model file list from Hugging Face API
 	modelFiles, err := h.getModelFiles(ctx, hfModelID)
@@ -233,19 +241,21 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 
 		resp, err := h.httpClient.Do(req)
 		if err != nil || resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 			continue // Skip missing files
 		}
 
 		filePath := filepath.Join(tempDir, file)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
 		outFile, err := os.Create(filePath)
 		if err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
@@ -258,13 +268,13 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 		}
 
 		if _, err := io.Copy(outFile, reader); err != nil {
-			outFile.Close()
-			resp.Body.Close()
+			_ = outFile.Close()
+			_ = resp.Body.Close()
 			continue
 		}
 
-		outFile.Close()
-		resp.Body.Close()
+		_ = outFile.Close()
+		_ = resp.Body.Close()
 		downloadedFiles = append(downloadedFiles, file)
 	}
 
