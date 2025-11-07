@@ -1,3 +1,4 @@
+// Package main provides the Axon CLI commands.
 package main
 
 import (
@@ -18,13 +19,17 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		_ = sourceFile.Close()
+	}()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		_ = destFile.Close()
+	}()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err
@@ -261,7 +266,7 @@ func installCmd() *cobra.Command {
 				if err := copyFile(tmpFile, cachePackagePath); err != nil {
 					return fmt.Errorf("failed to move package to cache: %w", err)
 				}
-				os.Remove(tmpFile) // Clean up temp file after copy
+				_ = os.Remove(tmpFile) // Clean up temp file after copy
 			}
 			fmt.Printf("✓ Package moved to cache: %s\n", cachePackagePath)
 

@@ -1,3 +1,4 @@
+// Package manifest provides functionality for parsing and validating model manifests.
 package manifest
 
 import (

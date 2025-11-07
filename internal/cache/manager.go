@@ -1,3 +1,4 @@
+// Package cache provides functionality for managing the local model cache.
 package cache
 
 import (

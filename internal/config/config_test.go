@@ -26,14 +26,14 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestConfigPath(t *testing.T) {
-	path := ConfigPath()
+	path := Path()
 	if path == "" {
-		t.Error("ConfigPath() should not be empty")
+		t.Error("Path() should not be empty")
 	}
 
 	// Should contain .axon
 	if !filepath.IsAbs(path) {
-		t.Error("ConfigPath() should return absolute path")
+		t.Error("Path() should return absolute path")
 	}
 }
 

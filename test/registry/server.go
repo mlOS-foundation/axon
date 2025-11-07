@@ -1,3 +1,4 @@
+// Package main provides a test HTTP server for the Axon registry.
 package main
 
 import (

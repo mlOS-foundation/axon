@@ -1,3 +1,4 @@
+// Package model provides functionality for model package handling, extraction, and verification.
 package model
 
 // TODO: Implement model package handling
