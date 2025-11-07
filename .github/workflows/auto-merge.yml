@@ -264,8 +264,48 @@ jobs:
         
         echo "✅ All bypass status checks processed"
         
-    - name: Auto merge if conditions met
+    - name: Check if PR is mergeable
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
+      id: check-mergeable
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔍 Checking if PR is mergeable..."
+        PR_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus,reviewDecision --jq '{mergeable: .mergeable, status: .mergeStateStatus, reviewDecision: .reviewDecision}')
+        MERGEABLE=$(echo "$PR_INFO" | jq -r '.mergeable // "UNKNOWN"')
+        MERGE_STATUS=$(echo "$PR_INFO" | jq -r '.status // "UNKNOWN"')
+        REVIEW_DECISION=$(echo "$PR_INFO" | jq -r '.reviewDecision // "null"')
+        
+        echo "Mergeable: $MERGEABLE"
+        echo "Merge Status: $MERGE_STATUS"
+        echo "Review Decision: $REVIEW_DECISION"
+        
+        # Check if blocked by review requirement
+        if [ "$MERGEABLE" = "false" ] || [ "$MERGE_STATUS" = "BLOCKED" ]; then
+          # Check branch protection
+          ENFORCE_ADMINS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.enforce_admins.enabled // false' 2>/dev/null || echo "false")
+          
+          if [ "$ENFORCE_ADMINS" = "true" ]; then
+            echo "⚠️  PR is blocked: 'Enforce admins' is enabled in branch protection"
+            echo "⚠️  Cannot merge even with admin /approve command"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=enforce_admins" >> $GITHUB_OUTPUT
+          elif [ "$REVIEW_DECISION" = "REVIEW_REQUIRED" ] || [ "$REVIEW_DECISION" = "CHANGES_REQUESTED" ]; then
+            echo "⚠️  PR is blocked: Review requirement not satisfied"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=review_required" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  PR is blocked: $MERGE_STATUS"
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+            echo "block_reason=unknown" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "✅ PR appears mergeable"
+          echo "can_merge=true" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Auto merge if conditions met
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
@@ -360,6 +400,23 @@ jobs:
           else
             gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
           fi
+        fi
+        
+    - name: Comment if merge blocked
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'false'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "⚠️  PR is blocked from merging"
+        
+        BLOCK_REASON="${{ steps.check-mergeable.outputs.block_reason }}"
+        
+        if [ "$BLOCK_REASON" = "enforce_admins" ]; then
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked: 'Enforce admins' is enabled**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection has \"Do not allow bypassing the above settings\" (enforce_admins) enabled, which prevents admins from bypassing review requirements.\n\n**Solution:** Disable 'Enforce admins' in branch protection:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. **Uncheck** \"Do not allow bypassing the above settings\"\n3. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\n**Note:** By default, GitHub allows admins to bypass branch protection. The \"Enforce admins\" setting overrides this default behavior."
+        elif [ "$BLOCK_REASON" = "review_required" ]; then
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked: Review requirement not satisfied**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection requires an approving review, but GitHub doesn't allow self-approval.\n\n**Solution:** Configure branch protection to allow admins to bypass review requirement:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\nAlternatively, have another team member approve the PR."
+        else
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked**\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** PR is not mergeable due to branch protection settings.\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
         fi
         
     - name: Comment if conditions not met
