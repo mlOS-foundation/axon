@@ -384,33 +384,62 @@ jobs:
           echo "can_merge=true" >> $GITHUB_OUTPUT
         fi
         
-    - name: Create approval review for admin (if needed)
+    - name: Create approval review for admin
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "🔍 Checking if approval review is needed..."
+        echo "✅ Creating approval review for admin user..."
         
         PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
         PR_AUTHOR=$(gh pr view $PR_NUMBER --json author --jq '.author.login')
-        
-        # Check if PR author is in bypass list
-        BYPASS_USERS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '[.required_pull_request_reviews.bypass_pull_request_allowances.users[]?.login // empty]' 2>/dev/null || echo "[]")
-        IN_BYPASS_LIST=$(echo "$BYPASS_USERS" | jq -r --arg author "$PR_AUTHOR" 'map(select(. == $author)) | length > 0')
         
         # Check if approval review already exists
         EXISTING_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
         
         if [ -n "$EXISTING_REVIEW" ]; then
           echo "✅ Approval review already exists from: $EXISTING_REVIEW"
-        elif [ "$IN_BYPASS_LIST" = "true" ]; then
-          echo "✅ PR author is in bypass list - review not needed, will merge directly"
         else
-          # PR author is admin but not in bypass list - need to create review
-          # But can't self-approve, so we'll skip and rely on admin merge privileges
-          echo "⚠️  PR author is admin but cannot self-approve"
-          echo "⚠️  Will attempt merge with admin privileges (bypass should work)"
-          echo "ℹ️  Note: If merge fails, consider adding PR author to bypass list"
+          # GitHub Actions bot can create approval reviews (it's a different user than PR author)
+          # The bot has write access and can approve PRs
+          echo "Creating approval review as GitHub Actions bot..."
+          
+          # Use GitHub API to create approval review
+          # The GitHub Actions token represents the bot, which can approve PRs
+          REVIEW_RESULT=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
+            --method POST \
+            --field event=APPROVE \
+            --field body="Auto-approved via /approve command from admin ($PR_AUTHOR)" 2>&1)
+          
+          REVIEW_EXIT_CODE=$?
+          
+          if [ $REVIEW_EXIT_CODE -eq 0 ]; then
+            echo "✅ Approval review created successfully by GitHub Actions bot"
+          else
+            echo "⚠️  API review creation failed: $REVIEW_RESULT"
+            echo "⚠️  Trying gh CLI as fallback..."
+            
+            # Try gh CLI as fallback
+            if gh pr review $PR_NUMBER --approve --body "Auto-approved via /approve command from admin ($PR_AUTHOR)" 2>&1; then
+              echo "✅ Approval review created via gh CLI"
+            else
+              echo "❌ Both methods failed to create approval review"
+              echo "⚠️  Will attempt merge anyway - bypass list may allow it"
+            fi
+          fi
+          
+          # Wait for review to propagate
+          echo "⏳ Waiting for review to propagate..."
+          sleep 5
+          
+          # Verify review was created
+          VERIFY_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
+          if [ -n "$VERIFY_REVIEW" ]; then
+            echo "✅ Verified: Approval review exists from: $VERIFY_REVIEW"
+          else
+            echo "⚠️  Warning: Could not verify approval review was created"
+            echo "⚠️  Merge may still work if bypass list is configured correctly"
+          fi
         fi
         
     - name: Auto merge if conditions met
