@@ -60,6 +60,17 @@ jobs:
         PROTECTION_STATUS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_status_checks.contexts // []' 2>/dev/null || echo "[]")
         echo "Required status checks: $PROTECTION_STATUS"
         
+        # Check if enforce_admins is enabled (this prevents admins from bypassing)
+        ENFORCE_ADMINS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.enforce_admins.enabled // false' 2>/dev/null || echo "false")
+        echo "Enforce admins: $ENFORCE_ADMINS"
+        
+        if [ "$ENFORCE_ADMINS" = "true" ]; then
+          echo "⚠️  WARNING: 'Enforce admins' is enabled - admins cannot bypass branch protection"
+          echo "💡 To allow admin self-merge, either:"
+          echo "   1. Disable 'Enforce admins' in branch protection settings, OR"
+          echo "   2. Add admins to the bypass list in branch protection settings"
+        fi
+        
         # Check current user permissions
         echo "👤 Current user: $(gh api user --jq '.login')"
         echo "🏢 Repository owner: ${{ github.repository_owner }}"
@@ -338,7 +349,14 @@ jobs:
           MERGE_ERROR=$(gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash 2>&1 || true)
           
           if echo "$MERGE_ERROR" | grep -q "approving review is required"; then
-            gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked by review requirement**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection requires an approving review, but GitHub doesn't allow self-approval.\n\n**Solution:** Configure branch protection to allow admins to bypass review requirement:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\nAlternatively, have another team member approve the PR."
+            # Check if enforce_admins is the issue
+            ENFORCE_ADMINS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.enforce_admins.enabled // false' 2>/dev/null || echo "false")
+            
+            if [ "$ENFORCE_ADMINS" = "true" ]; then
+              gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked: 'Enforce admins' is enabled**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection has \"Do not allow bypassing the above settings\" (enforce_admins) enabled, which prevents admins from bypassing review requirements.\n\n**Solution (choose one):**\n\n**Option 1: Disable 'Enforce admins' (Recommended for admin self-merge)**\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Uncheck \"Do not allow bypassing the above settings\"\n3. Save changes\n\n**Option 2: Add admins to bypass list**\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\n**Note:** By default, GitHub allows admins to bypass branch protection. The \"Enforce admins\" setting overrides this default behavior."
+            else
+              gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked by review requirement**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection requires an approving review, but GitHub doesn't allow self-approval.\n\n**Solution:** Add admins to the bypass list in branch protection settings:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\nAlternatively, have another team member approve the PR."
+            fi
           else
             gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
           fi
