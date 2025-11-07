@@ -91,4 +91,7 @@ ci: fmt-check vet lint test ## Run all CI checks
 
 validate: fmt-check vet lint test ## Alias for ci
 
+validate-pr: ## Run all validation checks before PR (fmt, vet, lint, test, build)
+	@./validate-pr.sh
+
 .DEFAULT_GOAL := help
