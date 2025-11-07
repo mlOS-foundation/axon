@@ -41,3 +41,9 @@ config.local.yaml
 # Logs
 *.log
 
+
+# Build artifacts
+build/
+release/
+*.tar.gz
+*.sha256
