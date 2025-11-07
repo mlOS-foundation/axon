@@ -15,15 +15,12 @@ permissions:
   actions: write
   statuses: write
   checks: write
-  administration: write
 
 jobs:
   auto-merge:
     name: Auto Merge Approved PRs
     runs-on: ubuntu-latest
-    if: |
-      (github.event.pull_request.draft == false || github.event_name == 'issue_comment') &&
-      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review' || github.event_name == 'pull_request')
+    if: github.event.pull_request.draft == false || (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     
     steps:
     - name: Get PR number
@@ -43,44 +40,73 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         echo "🔍 Checking repository permissions..."
-        gh repo view ${{ github.repository }} > /dev/null 2>&1 && echo "✅ Repository access: OK" || echo "❌ Repository access: FAILED"
-        gh pr view ${{ steps.get-pr-number.outputs.pr_number }} > /dev/null 2>&1 && echo "✅ PR access: OK" || echo "❌ PR access: FAILED"
+        
+        # Check if we can access the repository
+        if gh repo view ${{ github.repository }} > /dev/null 2>&1; then
+          echo "✅ Repository access: OK"
+        else
+          echo "❌ Repository access: FAILED"
+        fi
+        
+        # Check if we can view the PR
+        if gh pr view ${{ steps.get-pr-number.outputs.pr_number }} > /dev/null 2>&1; then
+          echo "✅ PR access: OK"
+        else
+          echo "❌ PR access: FAILED"
+        fi
+        
+        # Check branch protection status
+        echo "🔒 Checking branch protection..."
+        PROTECTION_STATUS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '.required_status_checks.contexts // []' 2>/dev/null || echo "[]")
+        echo "Required status checks: $PROTECTION_STATUS"
+        
+        # Check current user permissions
+        echo "👤 Current user: $(gh api user --jq '.login')"
+        echo "🏢 Repository owner: ${{ github.repository_owner }}"
       
-    - name: Check if PR creator is admin (for self-approval via /approve)
-      id: check-pr-author
+    - name: Check if PR is approved by admin
+      id: check-approval
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Get PR author info
+        # Get PR reviews and author info
+        REVIEWS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login')
         PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
         
-        # Define admin users (org owners and key admins)
+        # Check if any admin has approved
         ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
-        IS_ADMIN_PR=false
+        APPROVED_BY_ADMIN=false
         
-        # Check if PR author is an admin (self-approval allowed for admins via /approve)
+        # Check if PR author is an admin (self-approval allowed for admins)
         for admin in "${ADMINS[@]}"; do
           if [ "$PR_AUTHOR" = "$admin" ]; then
-            IS_ADMIN_PR=true
-            echo "PR author $PR_AUTHOR is an admin - self-approval via /approve allowed"
+            echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
+            APPROVED_BY_ADMIN=true
             break
           fi
         done
         
-        echo "is_admin_pr=$IS_ADMIN_PR" >> $GITHUB_OUTPUT
-        echo "PR Author: $PR_AUTHOR"
-        echo "Is admin PR: $IS_ADMIN_PR"
+        # If not self-approved, check for admin reviews
+        if [ "$APPROVED_BY_ADMIN" = "false" ]; then
+          for admin in "${ADMINS[@]}"; do
+            if echo "$REVIEWS" | grep -q "^$admin$"; then
+              APPROVED_BY_ADMIN=true
+              break
+            fi
+          done
+        fi
         
-        # Note: This step is for information only. The actual approval happens
-        # when /approve command is detected, regardless of PR author.
-        # Admins can self-approve their own PRs using /approve command.
+        echo "approved_by_admin=$APPROVED_BY_ADMIN" >> $GITHUB_OUTPUT
+        echo "Reviews: $REVIEWS"
+        echo "PR Author: $PR_AUTHOR"
+        echo "Approved by admin: $APPROVED_BY_ADMIN"
         
     - name: Check for /approve command
       id: check-approve-command
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Define admin users
+        # Define admin users (same as in approval check)
         ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
         
         # Build regex pattern for admin users
@@ -94,193 +120,205 @@ jobs:
         done
         
         # Get PR comments from admin users only
-        COMMENTS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq ".comments[] | select(.author.login | test(\"$ADMIN_PATTERN\")) | .body" 2>/dev/null || echo "")
+        COMMENTS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq ".comments[] | select(.author.login | test(\"$ADMIN_PATTERN\")) | .body")
         
-        # Check current comment if this is triggered by comment
-        if [ "${{ github.event_name }}" = "issue_comment" ]; then
-          COMMENT_BODY="${{ github.event.comment.body }}"
-          COMMENT_AUTHOR="${{ github.event.comment.user.login }}"
-          
-          # Check if comment author is admin
-          IS_ADMIN=false
-          for admin in "${ADMINS[@]}"; do
-            if [ "$COMMENT_AUTHOR" = "$admin" ]; then
-              IS_ADMIN=true
-              break
-            fi
-          done
-          
-          # Check if comment contains /approve (standalone or with whitespace)
-          if [ "$IS_ADMIN" = "true" ] && echo "$COMMENT_BODY" | grep -qE "(^| )/approve( |$)"; then
-            echo "approve_command_found=true" >> $GITHUB_OUTPUT
-            echo "✅ /approve command found in current comment from admin"
-          fi
-        fi
-        
-        # Also check all comments for /approve
-        if [ -n "$COMMENTS" ] && echo "$COMMENTS" | grep -qE "(^| )/approve( |$)"; then
-          if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" != "true" ]; then
-            echo "approve_command_found=true" >> $GITHUB_OUTPUT
-            echo "✅ /approve command found from admin in comments"
-          fi
-        fi
-        
-        if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" != "true" ]; then
+        # Check for /approve command
+        if echo "$COMMENTS" | grep -q "/approve"; then
+          echo "approve_command_found=true" >> $GITHUB_OUTPUT
+        else
           echo "approve_command_found=false" >> $GITHUB_OUTPUT
         fi
         
-        echo "Comments from admins: $(echo "$COMMENTS" | head -5 || echo "None")"
+        echo "Comments with /approve: $(echo "$COMMENTS" | grep "/approve" || echo "None")"
         
-    - name: Approve PR as admin override
-      id: approve-pr
-      if: steps.check-approve-command.outputs.approve_command_found == 'true'
+    - name: Check CI status
+      id: check-ci
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "✅ Admin /approve command detected - attempting to approve PR"
-        # Get PR author to check if self-approval
-        PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
-        CURRENT_USER=$(gh api user --jq '.login')
+        echo "🔍 Checking CI status for PR #${{ steps.get-pr-number.outputs.pr_number }}"
         
-        # GitHub doesn't allow self-approval, so we'll create a review comment instead
-        # and rely on the status checks to allow merge
-        if [ "$PR_AUTHOR" = "$CURRENT_USER" ]; then
-          echo "⚠️  Cannot self-approve PR (GitHub restriction)"
-          echo "Creating review comment instead..."
-          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "✅ Approved via /approve command (admin override). Status checks will be bypassed." || true
+        # Get PR status checks with proper null handling
+        STATUS_CHECKS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json statusCheckRollup --jq '.statusCheckRollup // [] | map(select(.context and (.context | test("^(Test|Lint|Vet|Build)$")))) | map({context: .context, state: .state, conclusion: .conclusion})')
+        
+        echo "Status checks: $STATUS_CHECKS"
+        
+        # Check if we have any CI checks
+        CHECK_COUNT=$(echo "$STATUS_CHECKS" | jq 'length')
+        echo "Found $CHECK_COUNT CI checks"
+        
+        if [ "$CHECK_COUNT" -eq 0 ]; then
+          echo "⚠️  No CI checks found - assuming checks are passing"
+          echo "ALL_CHECKS_PASSING=true" >> $GITHUB_OUTPUT
         else
-          # Approve the PR if not self-approval
-          if gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" 2>&1; then
-            echo "✅ PR approved successfully"
-          else
-            echo "⚠️  Approval may already exist or failed, continuing..."
-          fi
-        fi
-        
-    - name: Create bypass status checks
-      id: create-status
-      if: steps.check-approve-command.outputs.approve_command_found == 'true'
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "✅ Creating bypass status checks for admin approval"
-        PR_SHA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json headRefOid --jq '.headRefOid')
-        echo "PR SHA: $PR_SHA"
-        
-        # Create success status for each required check
-        STATUS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        for check in "Test" "Lint" "Vet" "Build" "Admin Approval"; do
-          echo "Creating status check: $check"
-          if gh api repos/${{ github.repository }}/statuses/$PR_SHA \
-            --method POST \
-            -f state=success \
-            -f target_url="$STATUS_URL" \
-            -f description="Bypassed by admin /approve command" \
-            -f context="$check" 2>&1; then
-            echo "✅ Created status for $check"
-          else
-            echo "⚠️  Failed to create status for $check (may already exist or insufficient permissions)"
-          fi
-        done
-        
-        echo "✅ All bypass status checks processed"
-        echo "status_checks_created=true" >> $GITHUB_OUTPUT
-        
-    - name: Wait for status checks
-      if: steps.check-approve-command.outputs.approve_command_found == 'true'
-      run: |
-        echo "⏳ Waiting for status checks to propagate..."
-        sleep 20
-        
-    - name: Merge PR with admin bypass
-      if: steps.check-approve-command.outputs.approve_command_found == 'true'
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "🚀 Attempting to merge PR #${{ steps.get-pr-number.outputs.pr_number }} with admin bypass"
-        
-        # Get PR details
-        PR_DATA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json number,state,headRefOid,baseRefOid,title,body)
-        PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
-        
-        if [ "$PR_STATE" = "MERGED" ]; then
-          echo "✅ PR is already merged"
-          exit 0
-        fi
-        
-        if [ "$PR_STATE" != "OPEN" ]; then
-          echo "⚠️  PR is not open (state: $PR_STATE), cannot merge"
-          exit 0
-        fi
-        
-        # Use GitHub GraphQL API to merge with admin bypass
-        # This bypasses branch protection rules for admins
-        PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
-        REPO_OWNER="${{ github.repository_owner }}"
-        REPO_NAME="${{ github.event.repository.name }}"
-        
-        echo "Merging PR #$PR_NUMBER in $REPO_OWNER/$REPO_NAME"
-        
-        # Merge using GraphQL API with admin bypass
-        MERGE_RESULT=$(gh api graphql -f query="
-          mutation {
-            mergePullRequest(
-              input: {
-                pullRequestId: \"$(gh pr view $PR_NUMBER --json id --jq '.id')\"
-                mergeMethod: SQUASH
-              }
-            ) {
-              pullRequest {
-                merged
-                state
-              }
-            }
-          }
-        " 2>&1)
-        
-        if echo "$MERGE_RESULT" | grep -q '"merged":true'; then
-          echo "✅ PR merged successfully via GraphQL API"
+          # Check if all required CI checks are passing
+          ALL_CHECKS_PASSING=true
+          FAILED_CHECKS=""
           
-          # Delete branch if it's not the default branch
-          HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
-          DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')
-          
-          if [ "$HEAD_REF" != "$DEFAULT_BRANCH" ]; then
-            echo "Deleting branch: $HEAD_REF"
-            gh api repos/$REPO_OWNER/$REPO_NAME/git/refs/heads/$HEAD_REF --method DELETE 2>&1 || echo "⚠️  Could not delete branch (may already be deleted)"
-          fi
-        else
-          # Fallback: Try using REST API with admin bypass
-          echo "GraphQL merge failed, trying REST API..."
-          
-          PR_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
-          BASE_SHA=$(echo "$PR_DATA" | jq -r '.baseRefOid')
-          
-          # Merge using REST API
-          MERGE_RESPONSE=$(gh api repos/$REPO_OWNER/$REPO_NAME/pulls/$PR_NUMBER/merge \
-            --method PUT \
-            -f merge_method=squash \
-            -f commit_title="Merge PR #$PR_NUMBER" \
-            -f commit_message="Merged via /approve command (admin override)" 2>&1)
-          
-          if echo "$MERGE_RESPONSE" | grep -q '"merged":true'; then
-            echo "✅ PR merged successfully via REST API"
-            
-            # Delete branch
-            HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
-            DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')
-            
-            if [ "$HEAD_REF" != "$DEFAULT_BRANCH" ]; then
-              echo "Deleting branch: $HEAD_REF"
-              gh api repos/$REPO_OWNER/$REPO_NAME/git/refs/heads/$HEAD_REF --method DELETE 2>&1 || echo "⚠️  Could not delete branch"
+          # Check each CI status
+          echo "$STATUS_CHECKS" | jq -r '.[] | "\(.context)|\(.state)|\(.conclusion)"' | while IFS='|' read -r context state conclusion; do
+            if [ -n "$context" ]; then
+              echo "Check $context: state=$state, conclusion=$conclusion"
+              
+              if [ "$state" != "SUCCESS" ] && [ "$conclusion" != "SUCCESS" ]; then
+                echo "❌ Check $context is not passing"
+                echo "ALL_CHECKS_PASSING=false" >> $GITHUB_OUTPUT
+                echo "FAILED_CHECKS=$FAILED_CHECKS $context" >> $GITHUB_OUTPUT
+              fi
             fi
+          done
+          
+          # If no failed checks found, all are passing
+          if [ -z "$FAILED_CHECKS" ]; then
+            echo "ALL_CHECKS_PASSING=true" >> $GITHUB_OUTPUT
+            echo "✅ All CI checks are passing"
           else
-            echo "⚠️  Both merge methods failed"
-            echo "Merge response: $MERGE_RESPONSE"
-            echo ""
-            echo "Status checks have been created - you may need to merge manually"
-            echo "Or check if branch protection allows admin bypass"
-            exit 0
+            echo "❌ Some CI checks are failing: $FAILED_CHECKS"
           fi
         fi
 
+    - name: Wait for required CI checks to complete
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "⏳ Waiting for required CI checks to complete..."
+        
+        # Wait for required status checks to complete
+        MAX_ATTEMPTS=60  # 10 minutes total
+        ATTEMPT=0
+        
+        while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          # Get all status checks and filter for required ones
+          ALL_CHECKS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json statusCheckRollup --jq '.statusCheckRollup[]')
+          
+          # Check for required CI checks
+          REQUIRED_CHECKS=("Test" "Lint" "Vet" "Build")
+          ALL_REQUIRED_PASSING=true
+          
+          for check_name in "${REQUIRED_CHECKS[@]}"; do
+            CHECK=$(echo "$ALL_CHECKS" | jq "select(.name == \"$check_name\") | {name: .name, state: .state, conclusion: .conclusion}")
+            
+            if [ -n "$CHECK" ]; then
+              CHECK_STATE=$(echo "$CHECK" | jq -r '.state // "PENDING"')
+              CHECK_CONCLUSION=$(echo "$CHECK" | jq -r '.conclusion // "PENDING"')
+              if [ "$CHECK_STATE" != "SUCCESS" ] && [ "$CHECK_CONCLUSION" != "SUCCESS" ]; then
+                ALL_REQUIRED_PASSING=false
+                echo "⏳ Required check $check_name: state=$CHECK_STATE, conclusion=$CHECK_CONCLUSION"
+              fi
+            else
+              echo "⏳ Required check $check_name not found yet"
+            fi
+          done
+          
+          if [ "$ALL_REQUIRED_PASSING" = "true" ]; then
+            echo "✅ All required CI checks are successful!"
+            break
+          fi
+          
+          ATTEMPT=$((ATTEMPT + 1))
+          echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - waiting 10 seconds..."
+          sleep 10
+        done
+        
+        if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+          echo "❌ Timeout waiting for CI checks to complete"
+          exit 1
+        fi
+
+    - name: Auto merge if conditions met
+      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🚀 Auto-merging PR #${{ steps.get-pr-number.outputs.pr_number }}"
+        
+        # Since we disabled review requirements, try simple merge first
+        MERGE_SUCCESS=false
+        
+        # Strategy 1: Try simple merge (should work now that review requirement is disabled)
+        echo "📋 Attempting simple merge..."
+        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch; then
+          echo "✅ Merge successful with simple merge"
+          MERGE_SUCCESS=true
+        else
+          echo "❌ Simple merge failed, trying admin privileges..."
+          
+          # Strategy 2: Try gh pr merge with admin privileges (bypasses any remaining restrictions)
+          if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin; then
+            echo "✅ Merge successful with admin privileges"
+            MERGE_SUCCESS=true
+          else
+            echo "❌ Admin merge failed, trying GitHub API..."
+            
+            # Strategy 3: Try GitHub API merge
+            if gh api repos/${{ github.repository }}/pulls/${{ steps.get-pr-number.outputs.pr_number }}/merge \
+              --method PUT \
+              --field merge_method=squash \
+              --field commit_title="${{ github.event.pull_request.title || github.event.issue.title }}" \
+              --field commit_message="Auto-merged via /approve command"; then
+              echo "✅ Merge successful with GitHub API"
+              MERGE_SUCCESS=true
+            else
+              echo "❌ All merge strategies failed"
+            fi
+          fi
+        fi
+        
+        # Provide feedback based on merge result
+        if [ "$MERGE_SUCCESS" = "true" ]; then
+          echo "🎉 PR merged successfully!"
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "✅ **PR merged successfully!** Auto-merged via /approve command."
+        else
+          echo "⚠️  Auto-merge failed - manual intervention required"
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically due to permissions. Please merge manually or check repository settings.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
+        fi
+        
+    - name: Comment if conditions not met
+      if: steps.check-approval.outputs.approved_by_admin == 'false' || steps.check-approve-command.outputs.approve_command_found == 'false' || steps.check-ci.outputs.ALL_CHECKS_PASSING == 'false'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "⏳ Auto-merge conditions not met"
+        
+        # Build status message
+        STATUS_MESSAGE="⏳ **Auto-merge pending conditions:**\n\n"
+        
+        if [ "${{ steps.check-approval.outputs.approved_by_admin }}" == "false" ]; then
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [ ] Admin approval required\n"
+          echo "❌ Missing admin approval"
+        else
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [x] Admin approval ✅\n"
+        fi
+        
+        if [ "${{ steps.check-approve-command.outputs.approve_command_found }}" == "false" ]; then
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [ ] Admin must comment \`/approve\` to enable auto-merge\n"
+          echo "❌ Missing /approve command from admin"
+        else
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [x] /approve command ✅\n"
+        fi
+        
+        if [ "${{ steps.check-ci.outputs.ALL_CHECKS_PASSING }}" == "false" ]; then
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [ ] All CI checks must pass\n"
+          echo "❌ CI checks are failing"
+        else
+          STATUS_MESSAGE="${STATUS_MESSAGE}- [x] All CI checks passing ✅\n"
+        fi
+        
+        STATUS_MESSAGE="${STATUS_MESSAGE}\nOnce all conditions are met, this PR will be automatically merged! 🚀"
+        
+        gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "$STATUS_MESSAGE"
+
+  cleanup:
+    name: Cleanup merged branches
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    
+    steps:
+    - name: Delete feature branch
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🧹 Cleaning up merged branch: ${{ github.head_ref }}"
+        gh pr view ${{ github.event.pull_request.number }} --json headRefName --jq '.headRefName' | xargs -I {} gh api repos/${{ github.repository }}/git/refs/heads/{} -X DELETE
+        echo "✅ Branch deleted successfully"
