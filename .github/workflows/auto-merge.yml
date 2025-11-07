@@ -384,56 +384,6 @@ jobs:
           echo "can_merge=true" >> $GITHUB_OUTPUT
         fi
         
-    - name: Create approval review if admin/bypass
-      if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.bypass_applies == 'true'
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        echo "✅ Creating approval review for admin/bypass user..."
-        
-        PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
-        
-        # Check if approval review already exists
-        EXISTING_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
-        
-        if [ -n "$EXISTING_REVIEW" ]; then
-          echo "✅ Approval review already exists from: $EXISTING_REVIEW"
-        else
-          # Create approval review using GitHub REST API directly
-          # This creates a review as the GitHub Actions bot (which has write access)
-          echo "Creating approval review via GitHub API..."
-          
-          # Use GitHub API to create an approval review
-          REVIEW_RESULT=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews \
-            --method POST \
-            --field event=APPROVE \
-            --field body="Auto-approved via /approve command (admin/bypass user)" 2>&1)
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ Approval review created successfully"
-            echo "$REVIEW_RESULT"
-          else
-            echo "⚠️  Could not create approval review: $REVIEW_RESULT"
-            # Try alternative: use gh pr review command
-            if gh pr review $PR_NUMBER --approve --body "Auto-approved via /approve command" 2>&1; then
-              echo "✅ Approval review created via gh CLI"
-            else
-              echo "⚠️  Both API methods failed, but continuing..."
-            fi
-          fi
-          
-          # Wait for review to propagate
-          echo "⏳ Waiting for review to propagate..."
-          sleep 5
-          
-          # Verify review was created
-          VERIFY_REVIEW=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | head -1)
-          if [ -n "$VERIFY_REVIEW" ]; then
-            echo "✅ Verified: Approval review exists from: $VERIFY_REVIEW"
-          else
-            echo "⚠️  Warning: Could not verify approval review was created"
-          fi
-        fi
         
     - name: Auto merge if conditions met
       if: steps.check-approval.outputs.approved_by_admin == 'true' && steps.check-approve-command.outputs.approve_command_found == 'true' && steps.check-ci.outputs.ALL_CHECKS_PASSING == 'true' && steps.check-mergeable.outputs.can_merge == 'true'
