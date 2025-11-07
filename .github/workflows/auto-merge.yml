@@ -15,6 +15,7 @@ permissions:
   actions: write
   statuses: write
   checks: write
+  administration: write
 
 jobs:
   auto-merge:
