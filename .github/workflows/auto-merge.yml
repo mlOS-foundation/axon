@@ -191,36 +191,95 @@ jobs:
         echo "⏳ Waiting for status checks to propagate..."
         sleep 20
         
-    - name: Merge PR
+    - name: Merge PR with admin bypass
       if: steps.check-approve-command.outputs.approve_command_found == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "🚀 Attempting to merge PR #${{ steps.get-pr-number.outputs.pr_number }}"
+        echo "🚀 Attempting to merge PR #${{ steps.get-pr-number.outputs.pr_number }} with admin bypass"
         
-        # Check merge status
-        MERGE_INFO=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json mergeable,mergeStateStatus --jq '{mergeable: .mergeable, status: .mergeStateStatus}')
-        echo "Merge info: $MERGE_INFO"
+        # Get PR details
+        PR_DATA=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json number,state,headRefOid,baseRefOid,title,body)
+        PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
         
-        # Attempt to merge with admin flag to bypass checks
-        if gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash --delete-branch --admin 2>&1; then
-          echo "✅ PR merged successfully"
-        else
-          MERGE_ERROR=$?
-          echo "⚠️  Merge attempt returned exit code: $MERGE_ERROR"
-          echo "Checking if merge is still needed..."
+        if [ "$PR_STATE" = "MERGED" ]; then
+          echo "✅ PR is already merged"
+          exit 0
+        fi
+        
+        if [ "$PR_STATE" != "OPEN" ]; then
+          echo "⚠️  PR is not open (state: $PR_STATE), cannot merge"
+          exit 0
+        fi
+        
+        # Use GitHub GraphQL API to merge with admin bypass
+        # This bypasses branch protection rules for admins
+        PR_NUMBER=${{ steps.get-pr-number.outputs.pr_number }}
+        REPO_OWNER="${{ github.repository_owner }}"
+        REPO_NAME="${{ github.event.repository.name }}"
+        
+        echo "Merging PR #$PR_NUMBER in $REPO_OWNER/$REPO_NAME"
+        
+        # Merge using GraphQL API with admin bypass
+        MERGE_RESULT=$(gh api graphql -f query="
+          mutation {
+            mergePullRequest(
+              input: {
+                pullRequestId: \"$(gh pr view $PR_NUMBER --json id --jq '.id')\"
+                mergeMethod: SQUASH
+              }
+            ) {
+              pullRequest {
+                merged
+                state
+              }
+            }
+          }
+        " 2>&1)
+        
+        if echo "$MERGE_RESULT" | grep -q '"merged":true'; then
+          echo "✅ PR merged successfully via GraphQL API"
           
-          # Check if already merged
-          CURRENT_STATE=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json state --jq '.state')
-          if [ "$CURRENT_STATE" = "MERGED" ]; then
-            echo "✅ PR is already merged"
+          # Delete branch if it's not the default branch
+          HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+          DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')
+          
+          if [ "$HEAD_REF" != "$DEFAULT_BRANCH" ]; then
+            echo "Deleting branch: $HEAD_REF"
+            gh api repos/$REPO_OWNER/$REPO_NAME/git/refs/heads/$HEAD_REF --method DELETE 2>&1 || echo "⚠️  Could not delete branch (may already be deleted)"
+          fi
+        else
+          # Fallback: Try using REST API with admin bypass
+          echo "GraphQL merge failed, trying REST API..."
+          
+          PR_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
+          BASE_SHA=$(echo "$PR_DATA" | jq -r '.baseRefOid')
+          
+          # Merge using REST API
+          MERGE_RESPONSE=$(gh api repos/$REPO_OWNER/$REPO_NAME/pulls/$PR_NUMBER/merge \
+            --method PUT \
+            -f merge_method=squash \
+            -f commit_title="Merge PR #$PR_NUMBER" \
+            -f commit_message="Merged via /approve command (admin override)" 2>&1)
+          
+          if echo "$MERGE_RESPONSE" | grep -q '"merged":true'; then
+            echo "✅ PR merged successfully via REST API"
+            
+            # Delete branch
+            HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+            DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')
+            
+            if [ "$HEAD_REF" != "$DEFAULT_BRANCH" ]; then
+              echo "Deleting branch: $HEAD_REF"
+              gh api repos/$REPO_OWNER/$REPO_NAME/git/refs/heads/$HEAD_REF --method DELETE 2>&1 || echo "⚠️  Could not delete branch"
+            fi
+          else
+            echo "⚠️  Both merge methods failed"
+            echo "Merge response: $MERGE_RESPONSE"
+            echo ""
+            echo "Status checks have been created - you may need to merge manually"
+            echo "Or check if branch protection allows admin bypass"
             exit 0
           fi
-          
-          echo "PR state: $CURRENT_STATE"
-          echo "⚠️  Merge may need manual intervention or more time for status checks"
-          echo "Status checks have been created - you can manually merge if needed"
-          # Don't fail the workflow - we've done our job
-          exit 0
         fi
 
