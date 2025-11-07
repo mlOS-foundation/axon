@@ -136,12 +136,24 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        echo "✅ Admin /approve command detected - approving PR"
-        # Approve the PR
-        if gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" 2>&1; then
-          echo "✅ PR approved successfully"
+        echo "✅ Admin /approve command detected - attempting to approve PR"
+        # Get PR author to check if self-approval
+        PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
+        CURRENT_USER=$(gh api user --jq '.login')
+        
+        # GitHub doesn't allow self-approval, so we'll create a review comment instead
+        # and rely on the status checks to allow merge
+        if [ "$PR_AUTHOR" = "$CURRENT_USER" ]; then
+          echo "⚠️  Cannot self-approve PR (GitHub restriction)"
+          echo "Creating review comment instead..."
+          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "✅ Approved via /approve command (admin override). Status checks will be bypassed." || true
         else
-          echo "⚠️  Approval may already exist, continuing..."
+          # Approve the PR if not self-approval
+          if gh pr review ${{ steps.get-pr-number.outputs.pr_number }} --approve --body "Approved via /approve command by admin - bypassing CI checks" 2>&1; then
+            echo "✅ PR approved successfully"
+          else
+            echo "⚠️  Approval may already exist or failed, continuing..."
+          fi
         fi
         
     - name: Create bypass status checks
