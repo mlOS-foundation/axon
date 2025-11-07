@@ -80,31 +80,46 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
+          fi
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
+        
         # Get PR reviews and author info
         REVIEWS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login')
         PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
         
-        # Check if any admin has approved
-        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
         APPROVED_BY_ADMIN=false
         
         # Check if PR author is an admin (self-approval allowed for admins)
-        for admin in "${ADMINS[@]}"; do
-          if [ "$PR_AUTHOR" = "$admin" ]; then
-            echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
-            APPROVED_BY_ADMIN=true
+        if is_admin "$PR_AUTHOR"; then
+          echo "PR author $PR_AUTHOR is an admin - self-approval allowed"
+          APPROVED_BY_ADMIN=true
+        else
+          # Check if any reviewer is an admin
+          while IFS= read -r reviewer; do
+            if [ -n "$reviewer" ] && is_admin "$reviewer"; then
+              echo "Reviewer $reviewer is an admin"
+              APPROVED_BY_ADMIN=true
             break
           fi
-        done
-        
-        # If not self-approved, check for admin reviews
-        if [ "$APPROVED_BY_ADMIN" = "false" ]; then
-          for admin in "${ADMINS[@]}"; do
-            if echo "$REVIEWS" | grep -q "^$admin$"; then
-              APPROVED_BY_ADMIN=true
-              break
-            fi
-          done
+          done <<< "$REVIEWS"
         fi
         
         echo "approved_by_admin=$APPROVED_BY_ADMIN" >> $GITHUB_OUTPUT
@@ -117,30 +132,50 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        # Define admin users (same as in approval check)
-        ADMINS=("${{ github.repository_owner }}" "ishaileshpant")
-        
-        # Build regex pattern for admin users
-        ADMIN_PATTERN=""
-        for admin in "${ADMINS[@]}"; do
-          if [ -z "$ADMIN_PATTERN" ]; then
-            ADMIN_PATTERN="^$admin$"
-          else
-            ADMIN_PATTERN="$ADMIN_PATTERN|^$admin$"
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
           fi
-        done
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
         
-        # Get PR comments from admin users only
-        COMMENTS=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq ".comments[] | select(.author.login | test(\"$ADMIN_PATTERN\")) | .body")
+        # Get all PR comments with author info
+        COMMENTS_JSON=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json comments --jq '.comments[] | {author: .author.login, body: .body}')
         
-        # Check for /approve command
-        if echo "$COMMENTS" | grep -q "/approve"; then
+        # Check each comment to see if it's from an admin and contains /approve
+        APPROVE_FOUND=false
+        while IFS= read -r comment; do
+          AUTHOR=$(echo "$comment" | jq -r '.author')
+          BODY=$(echo "$comment" | jq -r '.body')
+          
+          if is_admin "$AUTHOR" && echo "$BODY" | grep -q "/approve"; then
+            echo "Found /approve command from admin: $AUTHOR"
+            APPROVE_FOUND=true
+            break
+          fi
+        done <<< "$COMMENTS_JSON"
+        
+        if [ "$APPROVE_FOUND" = "true" ]; then
           echo "approve_command_found=true" >> $GITHUB_OUTPUT
         else
           echo "approve_command_found=false" >> $GITHUB_OUTPUT
         fi
         
-        echo "Comments with /approve: $(echo "$COMMENTS" | grep "/approve" || echo "None")"
+        echo "Comments with /approve from admins: $(echo "$COMMENTS_JSON" | jq -r 'select(.body | contains("/approve")) | "\(.author): \(.body)"' || echo "None")"
         
     - name: Check CI status
       id: check-ci
@@ -282,16 +317,46 @@ jobs:
         echo "Review Decision: $REVIEW_DECISION"
         echo "PR Author: $PR_AUTHOR"
         
-        # Check if PR author is in bypass list
+        # Function to check if a user is an admin
+        is_admin() {
+          local user=$1
+          local repo_owner="${{ github.repository_owner }}"
+          
+          # Repository owner is always an admin
+          if [ "$user" = "$repo_owner" ]; then
+            return 0
+          fi
+          
+          # Check collaborator permission level
+          local permission=$(gh api repos/${{ github.repository }}/collaborators/$user/permission --jq '.permission' 2>/dev/null || echo "none")
+          
+          # Admin or maintain permission means they're an admin
+          if [ "$permission" = "admin" ] || [ "$permission" = "maintain" ]; then
+            return 0
+          fi
+          
+          return 1
+        }
+        
+        # Check if PR author is in bypass list OR is an admin
         BYPASS_USERS=$(gh api repos/${{ github.repository }}/branches/main/protection --jq '[.required_pull_request_reviews.bypass_pull_request_allowances.users[]?.login // empty]' 2>/dev/null || echo "[]")
         IN_BYPASS_LIST=$(echo "$BYPASS_USERS" | jq -r --arg author "$PR_AUTHOR" 'map(select(. == $author)) | length > 0')
+        IS_AUTHOR_ADMIN=false
+        if is_admin "$PR_AUTHOR"; then
+          IS_AUTHOR_ADMIN=true
+        fi
         
         echo "Bypass list users: $BYPASS_USERS"
         echo "Author in bypass list: $IN_BYPASS_LIST"
+        echo "Author is admin: $IS_AUTHOR_ADMIN"
         
-        # If author is in bypass list, they can bypass review requirement
-        if [ "$IN_BYPASS_LIST" = "true" ]; then
-          echo "✅ PR author is in bypass list - review requirement can be bypassed"
+        # If author is in bypass list OR is an admin, they can bypass review requirement
+        if [ "$IN_BYPASS_LIST" = "true" ] || [ "$IS_AUTHOR_ADMIN" = "true" ]; then
+          if [ "$IN_BYPASS_LIST" = "true" ]; then
+            echo "✅ PR author is in bypass list - review requirement can be bypassed"
+          else
+            echo "✅ PR author is an admin - review requirement can be bypassed"
+          fi
           # Even if mergeable is false, we can try to merge (bypass will apply)
           echo "can_merge=true" >> $GITHUB_OUTPUT
           echo "bypass_applies=true" >> $GITHUB_OUTPUT
