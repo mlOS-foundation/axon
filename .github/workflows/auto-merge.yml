@@ -332,7 +332,16 @@ jobs:
           gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "✅ **PR merged successfully!** Auto-merged via /approve command."
         else
           echo "⚠️  Auto-merge failed - manual intervention required"
-          gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically due to permissions. Please merge manually or check repository settings.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
+          
+          # Check if it's a review requirement issue
+          PR_AUTHOR=$(gh pr view ${{ steps.get-pr-number.outputs.pr_number }} --json author --jq '.author.login')
+          MERGE_ERROR=$(gh pr merge ${{ steps.get-pr-number.outputs.pr_number }} --squash 2>&1 || true)
+          
+          if echo "$MERGE_ERROR" | grep -q "approving review is required"; then
+            gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge blocked by review requirement**\n\n**Conditions met:**\n- ✅ Admin approval (PR author is admin)\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Issue:** Branch protection requires an approving review, but GitHub doesn't allow self-approval.\n\n**Solution:** Configure branch protection to allow admins to bypass review requirement:\n1. Go to: Settings → Branches → Branch protection rules → main\n2. Under \"Restrict who can push to matching branches\" or \"Bypass list\"\n3. Add admin users (e.g., \`ishaileshpant\`, \`mlOS-foundation\`) to the bypass list\n4. Save changes\n\nAfter configuring, comment \`/approve\` again to trigger auto-merge.\n\nAlternatively, have another team member approve the PR."
+          else
+            gh pr comment ${{ steps.get-pr-number.outputs.pr_number }} --body "⚠️ **Auto-merge failed** - The PR meets all conditions but couldn't be merged automatically.\n\n**Conditions met:**\n- ✅ Admin approval\n- ✅ /approve command\n- ✅ All CI checks passing\n\n**Possible solutions:**\n1. Check branch protection settings\n2. Verify GitHub Actions permissions\n3. Merge manually"
+          fi
         fi
         
     - name: Comment if conditions not met
