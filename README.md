@@ -70,18 +70,22 @@ axon uninstall vision/resnet50
 Axon uses a **pluggable adapter architecture** that enables installation from any model repository:
 
 - ✅ **Hugging Face Hub** - Available now (100,000+ models, 60%+ of ML practitioners)
-- 🚧 **ONNX Model Zoo** - Coming in Phase 1 (15%+ coverage)
-- 🚧 **PyTorch Hub** - Coming in Phase 1 (5%+ coverage)
+- 🚧 **PyTorch Hub** - Coming in Phase 1 (5%+ coverage, research focus)
+- 🚧 **ModelScope** - Coming in Phase 1 (8%+ coverage, multimodal & enterprise)
+- 🚧 **TensorFlow Hub** - Coming in Phase 1 (7%+ coverage, production deployments)
 
-**Coverage**: According to industry data, Hugging Face alone hosts models used by **60%+ of ML practitioners**, with ONNX and PyTorch Hub covering additional **20%+**, for a total of **80%+ of the ML model user base**. This makes Axon a universal installer that works with virtually any model without vendor lock-in.
+**Note**: ONNX Model Zoo has been deprecated (July 2025) and models have transitioned to Hugging Face. See [ONNX deprecation notice](https://onnx.ai/models/).
+
+**Coverage**: According to industry data, Hugging Face alone hosts models used by **60%+ of ML practitioners**, with PyTorch Hub, ModelScope, and TensorFlow Hub covering additional **20%+**, for a total of **80%+ of the ML model user base**. This makes Axon a universal installer that works with virtually any model without vendor lock-in.
 
 ### Plug-and-Play Architecture
 
 ```bash
 # Adapters are automatically selected based on model namespace
-axon install hf/model-name@latest      # → Hugging Face adapter
-axon install onnx/model-name@latest     # → ONNX adapter (Phase 1)
-axon install pytorch/model-name@latest  # → PyTorch Hub adapter (Phase 1)
+axon install hf/model-name@latest           # → Hugging Face adapter
+axon install pytorch/model-name@latest     # → PyTorch Hub adapter (Phase 1)
+axon install modelscope/model-name@latest  # → ModelScope adapter (Phase 1)
+axon install tfhub/model-name@latest        # → TensorFlow Hub adapter (Phase 1)
 ```
 
 No configuration needed - Axon automatically detects and uses the right adapter!

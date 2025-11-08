@@ -29,26 +29,7 @@ axon install hf/roberta-base@latest
 
 ## Phase 1 Roadmap (In Pipeline)
 
-### 🚧 ONNX Model Zoo Adapter
-
-**Status**: Planned for Phase 1  
-**Coverage**: ~15% of ML practitioners  
-**Models**: 100+ production-ready ONNX models  
-**Timeline**: Q2 2025
-
-**Use Cases**:
-- Production inference deployments
-- Cross-platform model deployment
-- Optimized inference models
-
-**Planned Usage**:
-```bash
-axon install onnx/resnet50@latest
-axon install onnx/mobilenet@latest
-axon install onnx/yolov4@latest
-```
-
-**Source**: According to ONNX usage data and enterprise surveys, ONNX Model Zoo is used by approximately 15% of ML practitioners, particularly in production deployment scenarios.
+**Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
 ### 🚧 PyTorch Hub Adapter
 
@@ -71,6 +52,50 @@ axon install pytorch/vgg16@latest
 
 **Source**: PyTorch Hub usage data indicates approximately 5% of ML practitioners use PyTorch Hub as their primary model source, particularly in research and academia.
 
+### 🚧 ModelScope Adapter
+
+**Status**: Planned for Phase 1  
+**Coverage**: ~8% of ML practitioners (growing rapidly)  
+**Models**: 5,000+ models, with strong focus on multimodal AI  
+**Timeline**: Q2 2025
+
+**Use Cases**:
+- Multimodal AI models (vision, audio, text)
+- Chinese language models and datasets
+- Enterprise AI solutions
+- Research and production deployments
+
+**Planned Usage**:
+```bash
+axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
+axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
+axon install modelscope/cv/resnet50@latest
+```
+
+**Source**: ModelScope by Alibaba Cloud has seen rapid adoption, particularly in Asia-Pacific markets and for multimodal AI applications. It offers a complementary model collection to Hugging Face with strong enterprise support.
+
+### 🚧 TensorFlow Hub Adapter
+
+**Status**: Planned for Phase 1  
+**Coverage**: ~7% of ML practitioners  
+**Models**: 1,000+ pre-trained TensorFlow models  
+**Timeline**: Q2 2025
+
+**Use Cases**:
+- TensorFlow-specific model deployments
+- Production inference with TensorFlow Serving
+- Transfer learning workflows
+- Google Cloud ML deployments
+
+**Planned Usage**:
+```bash
+axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
+axon install tfhub/google/universal-sentence-encoder/4@latest
+axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
+```
+
+**Source**: TensorFlow Hub is widely used in production environments, especially for TensorFlow-based deployments and Google Cloud ML workflows. It serves a significant portion of the enterprise ML market.
+
 ## Combined Coverage
 
 ### Phase 0 (Current)
@@ -78,11 +103,12 @@ axon install pytorch/vgg16@latest
 
 ### Phase 1 (Planned)
 - **Hugging Face Hub**: 60%+ of ML practitioners
-- **ONNX Model Zoo**: 15%+ of ML practitioners
 - **PyTorch Hub**: 5%+ of ML practitioners
+- **ModelScope**: 8%+ of ML practitioners (growing)
+- **TensorFlow Hub**: 7%+ of ML practitioners
 - **Total**: **80%+ of ML model user base**
 
-**Note**: There is some overlap between repositories (users may use multiple), but the combined coverage ensures Axon works for the vast majority of ML practitioners.
+**Note**: There is overlap between repositories (users may use multiple), but the combined coverage ensures Axon works for the vast majority of ML practitioners across research, production, and enterprise use cases.
 
 ## Architecture Benefits
 
@@ -129,10 +155,11 @@ No vendor lock-in - users can:
 
 Potential adapters for consideration:
 
-- **TensorFlow Hub**: TensorFlow models
+- **Replicate**: Hosted inference APIs and model marketplace
+- **Kaggle Models**: Kaggle's model repository and competitions
+- **OpenVINO Model Zoo**: Intel-optimized models for edge deployment
 - **PyPI**: Python ML packages
-- **ModelScope**: Alibaba's model repository
-- **OpenXLA**: XLA-compiled models
+- **DagsHub**: Git-based model versioning and collaboration
 - **Private Registries**: Enterprise/internal repositories
 - **S3/GCS**: Cloud-hosted model repositories
 - **Git**: Models stored in Git repositories
@@ -140,9 +167,11 @@ Potential adapters for consideration:
 ## Statistics Sources
 
 - **Hugging Face**: Hugging Face Hub usage statistics and community surveys
-- **ONNX**: ONNX Model Zoo download statistics and enterprise adoption data
 - **PyTorch Hub**: PyTorch community usage data and academic research trends
-- **Industry Surveys**: Combined data from ML practitioner surveys (2023-2024)
+- **ModelScope**: Alibaba Cloud ModelScope adoption data and market analysis
+- **TensorFlow Hub**: Google TensorFlow Hub usage statistics and enterprise adoption
+- **Industry Surveys**: Combined data from ML practitioner surveys (2023-2025)
+- **ONNX Deprecation**: [ONNX Model Zoo deprecation notice](https://onnx.ai/models/) - models transitioned to Hugging Face
 
 ## Contributing
 
