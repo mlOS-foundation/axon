@@ -75,12 +75,45 @@ axon install hf/microsoft/resnet-50@latest
 4. Computes SHA256 checksum
 5. Caches package locally
 
+### 3. PyTorch Hub Adapter (v1.1.0+)
+
+**Purpose**: Download models directly from PyTorch Hub repositories in real-time
+
+**Usage**:
+```bash
+# Install PyTorch Hub models (supports multi-part names)
+axon install pytorch/vision/resnet50@latest
+axon install pytorch/vision/alexnet@latest
+axon install pytorch/vision/vgg16@latest
+```
+
+**Features**:
+- ✅ Real-time downloads from PyTorch Hub (GitHub-based)
+- ✅ Automatic package creation (`.axon` format)
+- ✅ Support for multi-part model names (e.g., `vision/resnet50`)
+- ✅ Fallback URL support for common models
+- ✅ Automatic checksum computation
+- ✅ Progress tracking
+
+**How it works**:
+1. Axon parses the model specification (e.g., `pytorch/vision/resnet50`)
+2. Fetches model weights from PyTorch's download URLs
+3. Creates `.axon` package on-the-fly
+4. Computes SHA256 checksum
+5. Caches package locally
+
+**Supported Models**:
+- PyTorch Vision models (resnet50, alexnet, vgg16, etc.)
+- Models from `pytorch/vision`, `pytorch/text`, `pytorch/audio` repositories
+- Any PyTorch Hub model with accessible weight URLs
+
 ## Adapter Priority
 
 Adapters are checked in **registration order**:
 
 1. **Local Registry** (if configured) - checked first
-2. **Hugging Face** - fallback for any model
+2. **PyTorch Hub** (v1.1.0+) - handles `pytorch/` and `torch/` namespaces
+3. **Hugging Face** - fallback for any model
 
 The first adapter that `CanHandle()` returns `true` is used.
 

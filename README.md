@@ -43,6 +43,10 @@ axon install hf/bert-base-uncased@latest
 axon install hf/gpt2@latest
 axon install hf/roberta-base@latest
 
+# Install PyTorch Hub models (v1.1.0+)
+axon install pytorch/vision/resnet50@latest
+axon install pytorch/vision/alexnet@latest
+
 # Or use local registry (optional)
 axon registry set default http://localhost:8080
 axon install nlp/bert-base-uncased@1.0.0
@@ -70,7 +74,7 @@ axon uninstall vision/resnet50
 Axon uses a **pluggable adapter architecture** that enables installation from any model repository:
 
 - ✅ **Hugging Face Hub** - Available now (100,000+ models, 60%+ of ML practitioners)
-- 🚧 **PyTorch Hub** - Coming in Phase 1 (5%+ coverage, research focus)
+- ✅ **PyTorch Hub** - Available in v1.1.0+ (5%+ coverage, research focus)
 - 🚧 **ModelScope** - Coming in Phase 1 (8%+ coverage, multimodal & enterprise)
 - 🚧 **TensorFlow Hub** - Coming in Phase 1 (7%+ coverage, production deployments)
 
@@ -83,7 +87,7 @@ Axon uses a **pluggable adapter architecture** that enables installation from an
 ```bash
 # Adapters are automatically selected based on model namespace
 axon install hf/model-name@latest           # → Hugging Face adapter
-axon install pytorch/model-name@latest     # → PyTorch Hub adapter (Phase 1)
+axon install pytorch/vision/resnet50@latest # → PyTorch Hub adapter (v1.1.0+)
 axon install modelscope/model-name@latest  # → ModelScope adapter (Phase 1)
 axon install tfhub/model-name@latest        # → TensorFlow Hub adapter (Phase 1)
 ```

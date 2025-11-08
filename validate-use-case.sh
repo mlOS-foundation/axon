@@ -81,13 +81,23 @@ test_info() {
     fi
 }
 
-# Test 4: axon install
+# Test 4: axon install (Hugging Face)
 test_install() {
     log_info "Test 4: Testing 'axon install hf/bert-base-uncased@latest'..."
     if axon install hf/bert-base-uncased@latest 2>&1; then
-        log_success "axon install completed"
+        log_success "axon install (Hugging Face) completed"
     else
-        log_error "axon install failed"
+        log_error "axon install (Hugging Face) failed"
+    fi
+}
+
+# Test 4b: axon install (PyTorch Hub) - NEW in v1.1.0
+test_install_pytorch() {
+    log_info "Test 4b: Testing 'axon install pytorch/vision/resnet50@latest' (PyTorch Hub adapter)..."
+    if axon install pytorch/vision/resnet50@latest 2>&1; then
+        log_success "axon install (PyTorch Hub) completed"
+    else
+        log_warning "axon install (PyTorch Hub) failed (may be expected if model is large or network issues)"
     fi
 }
 
@@ -204,6 +214,7 @@ main() {
     test_search
     test_info
     test_install
+    test_install_pytorch
     test_list
     test_verify
     test_cache

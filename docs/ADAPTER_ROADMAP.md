@@ -27,28 +27,45 @@ axon install hf/roberta-base@latest
 
 **Source**: According to Hugging Face's own data and industry surveys, Hugging Face Hub is used by over 60% of ML practitioners as their primary model repository.
 
-## Phase 1 Roadmap (In Pipeline)
+## Phase 1 Roadmap
+
+### ✅ Phase 1.1: PyTorch Hub Adapter (Completed - v1.1.0)
+
+**Status**: Production Ready  
+**Release**: v1.1.0 (November 2025)  
+**Coverage**: ~5% of ML practitioners  
+**Models**: 100+ PyTorch pre-trained models
+
+See [PyTorch Hub Adapter](#-pytorch-hub-adapter-v110) section above for details.
+
+### 🚧 Phase 1.2: ModelScope Adapter (In Pipeline)
 
 **Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
-### 🚧 PyTorch Hub Adapter
+### ✅ PyTorch Hub Adapter (v1.1.0+)
 
-**Status**: Planned for Phase 1  
+**Status**: Available Now  
 **Coverage**: ~5% of ML practitioners  
 **Models**: 100+ PyTorch pre-trained models  
-**Timeline**: Q2 2025
+**Release**: v1.1.0 (November 2025)
 
 **Use Cases**:
 - PyTorch-specific model deployments
 - Research and experimentation
 - Transfer learning workflows
 
-**Planned Usage**:
+**Usage**:
 ```bash
-axon install pytorch/resnet50@latest
-axon install pytorch/alexnet@latest
-axon install pytorch/vgg16@latest
+axon install pytorch/vision/resnet50@latest
+axon install pytorch/vision/alexnet@latest
+axon install pytorch/vision/vgg16@latest
 ```
+
+**Features**:
+- Real-time downloads from PyTorch Hub (GitHub-based)
+- Support for multi-part model names (e.g., `vision/resnet50`)
+- Fallback URL support for common models
+- Automatic package creation
 
 **Source**: PyTorch Hub usage data indicates approximately 5% of ML practitioners use PyTorch Hub as their primary model source, particularly in research and academia.
 
