@@ -149,7 +149,7 @@ func (cm *Manager) ListCachedModels() ([]CachedModel, error) {
 			}
 
 			// Split path by filepath separator (works cross-platform)
-			// Expected structure: namespace/name/version
+			// Expected structure: namespace/name/version or namespace/repo/model/version (multi-part names)
 			parts := []string{}
 			dir := relPath
 			for dir != "." && dir != "" {
@@ -160,12 +160,21 @@ func (cm *Manager) ListCachedModels() ([]CachedModel, error) {
 				dir = filepath.Dir(dir)
 			}
 
-			// Should have exactly 3 parts: namespace, name, version
-			if len(parts) == 3 {
+			// Need at least 3 parts: namespace, name, version
+			// For multi-part names (e.g., pytorch/vision/resnet50/latest):
+			// - First part is namespace
+			// - Last part is version
+			// - Everything in between is the name (joined with /)
+			if len(parts) >= 3 {
+				namespace := parts[0]
+				version := parts[len(parts)-1]
+				// Join all parts between namespace and version as the name
+				name := filepath.Join(parts[1 : len(parts)-1]...)
+
 				models = append(models, CachedModel{
-					Namespace: parts[0],
-					Name:      parts[1],
-					Version:   parts[2],
+					Namespace: namespace,
+					Name:      name,
+					Version:   version,
 					Path:      filepath.Dir(path),
 				})
 			}
