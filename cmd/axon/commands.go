@@ -37,14 +37,16 @@ func copyFile(src, dst string) error {
 }
 
 // parseModelSpec parses a model specification string (namespace/name[@version])
+// Supports both simple format (namespace/name) and multi-part format (namespace/repo/model)
 func parseModelSpec(spec string) (namespace, name, version string) {
 	parts := strings.Split(spec, "/")
-	if len(parts) != 2 {
+	if len(parts) < 2 {
 		return "", "", ""
 	}
 
 	namespace = parts[0]
-	nameVersion := parts[1]
+	// Join remaining parts as the name (supports multi-part names like "vision/resnet50")
+	nameVersion := strings.Join(parts[1:], "/")
 
 	// Check for version
 	if strings.Contains(nameVersion, "@") {
@@ -201,7 +203,11 @@ func installCmd() *cobra.Command {
 				adapterRegistry.Register(localAdapter)
 			}
 
-			// 2. Hugging Face (fallback - can handle any model)
+			// 2. PyTorch Hub (if namespace matches)
+			pytorchAdapter := registry.NewPyTorchHubAdapter()
+			adapterRegistry.Register(pytorchAdapter)
+
+			// 3. Hugging Face (fallback - can handle any model)
 			if cfg.Registry.EnableHuggingFace {
 				var hfAdapter *registry.HuggingFaceAdapter
 				if cfg.Registry.HuggingFaceToken != "" {
