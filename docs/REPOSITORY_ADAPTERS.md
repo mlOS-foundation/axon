@@ -197,43 +197,64 @@ adapterRegistry.Register(&CustomAdapter{})
 
 ## Roadmap: Phase 1 Adapters
 
-### ONNX Model Zoo Adapter (Phase 1)
-
-**Status**: In Pipeline  
-**Coverage**: ~15% of ML model user base  
-**Use Case**: Production-ready ONNX models for inference
-
-```bash
-# Coming soon in Phase 1
-axon install onnx/resnet50@latest
-axon install onnx/mobilenet@latest
-```
+**Note**: ONNX Model Zoo has been deprecated (July 2025) and models have transitioned to Hugging Face. See [ONNX deprecation notice](https://onnx.ai/models/).
 
 ### PyTorch Hub Adapter (Phase 1)
 
 **Status**: In Pipeline  
 **Coverage**: ~5% of ML model user base  
-**Use Case**: PyTorch pre-trained models
+**Use Case**: PyTorch pre-trained models for research and experimentation
 
 ```bash
 # Coming soon in Phase 1
 axon install pytorch/resnet50@latest
 axon install pytorch/alexnet@latest
+axon install pytorch/vgg16@latest
+```
+
+### ModelScope Adapter (Phase 1)
+
+**Status**: In Pipeline  
+**Coverage**: ~8% of ML model user base (growing rapidly)  
+**Use Case**: Multimodal AI models, Chinese language models, enterprise solutions
+
+```bash
+# Coming soon in Phase 1
+axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
+axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
+axon install modelscope/cv/resnet50@latest
+```
+
+### TensorFlow Hub Adapter (Phase 1)
+
+**Status**: In Pipeline  
+**Coverage**: ~7% of ML model user base  
+**Use Case**: TensorFlow models for production deployments and Google Cloud ML
+
+```bash
+# Coming soon in Phase 1
+axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
+axon install tfhub/google/universal-sentence-encoder/4@latest
+axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
 ```
 
 ### Combined Coverage
 
 - **Hugging Face**: 60%+ of ML practitioners
-- **ONNX Model Zoo**: 15%+ of ML practitioners
 - **PyTorch Hub**: 5%+ of ML practitioners
+- **ModelScope**: 8%+ of ML practitioners (growing)
+- **TensorFlow Hub**: 7%+ of ML practitioners
 - **Total**: **80%+ of ML model user base**
 
 ## Future Adapters (Post-Phase 1)
 
 Potential adapters for future phases:
 
+- **Replicate Adapter**: Hosted inference APIs and model marketplace
+- **Kaggle Models Adapter**: Kaggle's model repository and competitions
+- **OpenVINO Model Zoo Adapter**: Intel-optimized models for edge deployment
 - **PyPI Adapter**: For Python ML packages
-- **TensorFlow Hub Adapter**: For TensorFlow models
+- **DagsHub Adapter**: Git-based model versioning and collaboration
 - **S3/GCS Adapter**: For cloud-hosted model repositories
 - **Private Registry Adapter**: For enterprise/internal registries
 - **Git Adapter**: For models stored in Git repositories
