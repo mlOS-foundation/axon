@@ -42,31 +42,6 @@ See [PyTorch Hub Adapter](#-pytorch-hub-adapter-v110) section above for details.
 
 **Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
-**Status**: Available Now  
-**Coverage**: ~5% of ML practitioners  
-**Models**: 100+ PyTorch pre-trained models  
-**Release**: v1.1.0 (November 2025)
-
-**Use Cases**:
-- PyTorch-specific model deployments
-- Research and experimentation
-- Transfer learning workflows
-
-**Usage**:
-```bash
-axon install pytorch/vision/resnet50@latest
-axon install pytorch/vision/alexnet@latest
-axon install pytorch/vision/vgg16@latest
-```
-
-**Features**:
-- Real-time downloads from PyTorch Hub (GitHub-based)
-- Support for multi-part model names (e.g., `vision/resnet50`)
-- Fallback URL support for common models
-- Automatic package creation
-
-**Source**: PyTorch Hub usage data indicates approximately 5% of ML practitioners use PyTorch Hub as their primary model source, particularly in research and academia.
-
 ### 🚧 ModelScope Adapter
 
 **Status**: Planned for Phase 1  
