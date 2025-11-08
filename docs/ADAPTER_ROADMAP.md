@@ -42,8 +42,6 @@ See [PyTorch Hub Adapter](#-pytorch-hub-adapter-v110) section above for details.
 
 **Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
-### ✅ PyTorch Hub Adapter (v1.1.0+)
-
 **Status**: Available Now  
 **Coverage**: ~5% of ML practitioners  
 **Models**: 100+ PyTorch pre-trained models  
