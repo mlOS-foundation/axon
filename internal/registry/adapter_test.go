@@ -17,7 +17,7 @@ func TestPyTorchHubAdapter_Name(t *testing.T) {
 
 func TestPyTorchHubAdapter_CanHandle(t *testing.T) {
 	adapter := NewPyTorchHubAdapter()
-	
+
 	tests := []struct {
 		namespace string
 		name      string
@@ -29,7 +29,7 @@ func TestPyTorchHubAdapter_CanHandle(t *testing.T) {
 		{"modelscope", "cv/resnet50", false},
 		{"", "resnet50", false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.namespace+"/"+tt.name, func(t *testing.T) {
 			if got := adapter.CanHandle(tt.namespace, tt.name); got != tt.want {
@@ -42,7 +42,7 @@ func TestPyTorchHubAdapter_CanHandle(t *testing.T) {
 func TestPyTorchHubAdapter_GetManifest(t *testing.T) {
 	adapter := NewPyTorchHubAdapter()
 	ctx := context.Background()
-	
+
 	tests := []struct {
 		name      string
 		namespace string
@@ -65,7 +65,7 @@ func TestPyTorchHubAdapter_GetManifest(t *testing.T) {
 			wantErr:   true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			manifest, err := adapter.GetManifest(ctx, tt.namespace, tt.modelName, tt.version)
@@ -93,7 +93,7 @@ func TestPyTorchHubAdapter_GetManifest(t *testing.T) {
 
 func TestPyTorchHubAdapter_ParseHubconf(t *testing.T) {
 	adapter := NewPyTorchHubAdapter()
-	
+
 	tests := []struct {
 		name        string
 		hubconf     string
@@ -152,7 +152,7 @@ def resnet50(pretrained=False, **kwargs):
 			wantAtLeast: 0,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			urls := adapter.parseHubconf([]byte(tt.hubconf), tt.modelName)
@@ -192,12 +192,12 @@ model_urls = {
 		}
 	}))
 	defer server.Close()
-	
+
 	// Create adapter with custom base URL pointing to test server
 	adapter := NewPyTorchHubAdapter()
 	// We need to modify the adapter to use our test server
 	// For now, we'll test the parseHubconf function which is the core logic
-	
+
 	// Test parseHubconf with the mock hubconf content
 	hubconf := `
 model_urls = {
@@ -208,7 +208,7 @@ model_urls = {
 	if len(urls) == 0 {
 		t.Fatal("parseHubconf() should find at least one URL")
 	}
-	
+
 	// Verify the URL is correct
 	found := false
 	for _, url := range urls {
@@ -225,7 +225,7 @@ model_urls = {
 func TestPyTorchHubAdapter_Search(t *testing.T) {
 	adapter := NewPyTorchHubAdapter()
 	ctx := context.Background()
-	
+
 	// PyTorch Hub doesn't have a search API, so this should return empty
 	results, err := adapter.Search(ctx, "resnet")
 	if err != nil {
@@ -239,13 +239,12 @@ func TestPyTorchHubAdapter_Search(t *testing.T) {
 func TestPyTorchHubAdapter_WithToken(t *testing.T) {
 	token := "test_token"
 	adapter := NewPyTorchHubAdapterWithToken(token)
-	
+
 	if adapter.Name() != "pytorch" {
 		t.Errorf("Name() = %v, want 'pytorch'", adapter.Name())
 	}
-	
+
 	// Test that token is set (we can't easily test it's used without making real requests)
 	adapter.SetToken("new_token")
 	// Just verify it doesn't panic
 }
-

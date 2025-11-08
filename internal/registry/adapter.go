@@ -462,7 +462,7 @@ func (l *LocalRegistryAdapter) Name() string {
 func (l *LocalRegistryAdapter) CanHandle(namespace, name string) bool {
 	// Local registry can only handle models that are NOT from known adapters
 	// Known adapter namespaces: hf, pytorch, torch, modelscope, tfhub
-	if namespace == "hf" || namespace == "pytorch" || namespace == "torch" || 
+	if namespace == "hf" || namespace == "pytorch" || namespace == "torch" ||
 		namespace == "modelscope" || namespace == "tfhub" {
 		return false
 	}
@@ -813,16 +813,16 @@ func (p *PyTorchHubAdapter) DownloadPackage(ctx context.Context, manifest *types
 func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, modelName, destDir string, progress ProgressCallback) error {
 	// Fetch hubconf.py from GitHub
 	hubconfURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/main/hubconf.py", githubRepo)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", hubconfURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	if p.githubToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("token %s", p.githubToken))
 	}
-	
+
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to fetch hubconf.py: %w", err)
@@ -830,7 +830,7 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
 		// Try alternative branch names
@@ -852,17 +852,17 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 				_ = altResp.Body.Close()
 			}
 		}
-		
+
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("failed to fetch hubconf.py: status %d", resp.StatusCode)
 		}
 	}
-	
+
 	hubconfContent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read hubconf.py: %w", err)
 	}
-	
+
 	// Parse hubconf.py to extract model URLs
 	// hubconf.py typically contains model_urls dictionary like:
 	// model_urls = {
@@ -870,11 +870,11 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 	//     ...
 	// }
 	modelURLs := p.parseHubconf(hubconfContent, modelName)
-	
+
 	if len(modelURLs) == 0 {
 		return fmt.Errorf("no model URLs found in hubconf.py for model: %s", modelName)
 	}
-	
+
 	// Download model weights from extracted URLs
 	downloadedFiles := []string{}
 	for _, url := range modelURLs {
@@ -884,7 +884,7 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 		if idx := strings.Index(filename, "?"); idx != -1 {
 			filename = filename[:idx]
 		}
-		
+
 		destPath := filepath.Join(destDir, filename)
 		if err := p.downloadFile(ctx, url, destPath, 0, progress); err != nil {
 			fmt.Printf("Warning: failed to download %s: %v\n", url, err)
@@ -892,11 +892,11 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 		}
 		downloadedFiles = append(downloadedFiles, filename)
 	}
-	
+
 	if len(downloadedFiles) == 0 {
 		return fmt.Errorf("failed to download any model files for %s", modelName)
 	}
-	
+
 	return nil
 }
 
@@ -905,7 +905,7 @@ func (p *PyTorchHubAdapter) downloadFromBranch(ctx context.Context, githubRepo, 
 func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string) []string {
 	content := string(hubconfContent)
 	var urls []string
-	
+
 	// Pattern 1: Look for model_urls dictionary
 	// Example: model_urls = {'resnet50': 'https://...', ...}
 	modelURLsPattern := regexp.MustCompile(`model_urls\s*=\s*\{([^}]+)\}`)
@@ -916,7 +916,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 		// Match key-value pairs: 'key': 'url' or "key": "url"
 		entryPattern := regexp.MustCompile(`['"](\w+)['"]\s*:\s*['"](https?://[^'"]+)['"]`)
 		entries := entryPattern.FindAllStringSubmatch(dictContent, -1)
-		
+
 		for _, entry := range entries {
 			if len(entry) >= 3 {
 				key := entry[1]
@@ -928,7 +928,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 			}
 		}
 	}
-	
+
 	// Pattern 2: Look for direct URL assignments
 	// Example: resnet50_url = 'https://...'
 	directURLPattern := regexp.MustCompile(fmt.Sprintf(`%s_url\s*=\s*['"](https?://[^'"]+)['"]`, regexp.QuoteMeta(modelName)))
@@ -938,7 +938,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 			urls = append(urls, match[1])
 		}
 	}
-	
+
 	// Pattern 3: Look for WeightsEnum patterns (torchvision style)
 	// Example: class ResNet50_Weights(WeightsEnum): url="https://..."
 	weightsPattern := regexp.MustCompile(fmt.Sprintf(`(?i)class\s+%s.*?Weights.*?url\s*=\s*['"](https?://[^'"]+)['"]`, regexp.QuoteMeta(modelName)))
@@ -948,7 +948,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 			urls = append(urls, match[1])
 		}
 	}
-	
+
 	// Pattern 4: Look for URLs in function definitions that load the model
 	// Example: def resnet50(pretrained=True, ...): ... load_state_dict_from_url('https://...')
 	loadURLPattern := regexp.MustCompile(`load_state_dict_from_url\(['"](https?://[^'"]+)['"]`)
@@ -963,7 +963,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 			}
 		}
 	}
-	
+
 	// Pattern 5: Try to fetch from model source file if hubconf.py doesn't have URLs
 	// This is a fallback for torchvision models that use WeightsEnum
 	if len(urls) == 0 {
@@ -971,7 +971,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 		// For now, we'll use a fallback URL pattern for common models
 		urls = p.getFallbackURLs(modelName)
 	}
-	
+
 	// Remove duplicates
 	seen := make(map[string]bool)
 	uniqueURLs := []string{}
@@ -981,7 +981,7 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 			uniqueURLs = append(uniqueURLs, url)
 		}
 	}
-	
+
 	return uniqueURLs
 }
 
@@ -990,22 +990,22 @@ func (p *PyTorchHubAdapter) parseHubconf(hubconfContent []byte, modelName string
 func (p *PyTorchHubAdapter) getFallbackURLs(modelName string) []string {
 	// Known PyTorch model URLs (common models from torchvision)
 	knownURLs := map[string]string{
-		"resnet50":   "https://download.pytorch.org/models/resnet50-0676ba61.pth",
-		"resnet101":  "https://download.pytorch.org/models/resnet101-63fe2227.pth",
-		"resnet152":  "https://download.pytorch.org/models/resnet152-394f9c45.pth",
-		"resnet18":   "https://download.pytorch.org/models/resnet18-f37072fd.pth",
-		"resnet34":   "https://download.pytorch.org/models/resnet34-b627a593.pth",
-		"alexnet":    "https://download.pytorch.org/models/alexnet-owt-7be5be79.pth",
-		"vgg16":      "https://download.pytorch.org/models/vgg16-397923af.pth",
-		"vgg19":      "https://download.pytorch.org/models/vgg19-dcbb9e9d.pth",
+		"resnet50":     "https://download.pytorch.org/models/resnet50-0676ba61.pth",
+		"resnet101":    "https://download.pytorch.org/models/resnet101-63fe2227.pth",
+		"resnet152":    "https://download.pytorch.org/models/resnet152-394f9c45.pth",
+		"resnet18":     "https://download.pytorch.org/models/resnet18-f37072fd.pth",
+		"resnet34":     "https://download.pytorch.org/models/resnet34-b627a593.pth",
+		"alexnet":      "https://download.pytorch.org/models/alexnet-owt-7be5be79.pth",
+		"vgg16":        "https://download.pytorch.org/models/vgg16-397923af.pth",
+		"vgg19":        "https://download.pytorch.org/models/vgg19-dcbb9e9d.pth",
 		"mobilenet_v2": "https://download.pytorch.org/models/mobilenet_v2-7ebf99e0.pth",
 	}
-	
+
 	// Try exact match first
 	if url, ok := knownURLs[modelName]; ok {
 		return []string{url}
 	}
-	
+
 	// Try partial match (e.g., "vision/resnet50" -> "resnet50")
 	parts := strings.Split(modelName, "/")
 	if len(parts) > 0 {
@@ -1014,7 +1014,7 @@ func (p *PyTorchHubAdapter) getFallbackURLs(modelName string) []string {
 			return []string{url}
 		}
 	}
-	
+
 	return []string{}
 }
 
