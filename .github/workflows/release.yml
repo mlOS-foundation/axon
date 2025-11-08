@@ -55,6 +55,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.get_version.outputs.version }}
         run: |
           ARCHIVE_NAME="axon_${VERSION}_${GOOS}_${GOARCH}.tar.gz"
           cd build
