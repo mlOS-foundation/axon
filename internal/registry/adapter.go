@@ -1205,9 +1205,9 @@ func (t *TensorFlowHubAdapter) Search(ctx context.Context, query string) ([]type
 
 	var searchResponse struct {
 		Results []struct {
-			Publisher  string `json:"publisher"`
-			Name       string `json:"name"`
-			Version    string `json:"version"`
+			Publisher   string `json:"publisher"`
+			Name        string `json:"name"`
+			Version     string `json:"version"`
 			Description string `json:"description"`
 		} `json:"results"`
 	}
@@ -1273,14 +1273,14 @@ func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name,
 		Version     string `json:"version"`
 		Format      string `json:"format"` // "saved_model" or "tflite"
 		Inputs      []struct {
-			Name  string   `json:"name"`
-			DType string   `json:"dtype"`
-			Shape []int    `json:"shape"`
+			Name  string `json:"name"`
+			DType string `json:"dtype"`
+			Shape []int  `json:"shape"`
 		} `json:"inputs"`
 		Outputs []struct {
-			Name  string   `json:"name"`
-			DType string   `json:"dtype"`
-			Shape []int    `json:"shape"`
+			Name  string `json:"name"`
+			DType string `json:"dtype"`
+			Shape []int  `json:"shape"`
 		} `json:"outputs"`
 	}
 
@@ -1324,7 +1324,7 @@ func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name,
 				Files: []types.ModelFile{
 					{
 						Path:   fmt.Sprintf("model%s", fileExt),
-						Size:   0, // Will be determined during download
+						Size:   0,  // Will be determined during download
 						SHA256: "", // Will be computed during download
 					},
 				},
