@@ -148,22 +148,109 @@ func infoCmd() *cobra.Command {
 
 			fmt.Printf("Fetching info for %s/%s@%s...\n", namespace, name, version)
 
-			client := registry.NewClient(cfg.Registry.URL, cfg.Registry.Mirrors)
-			manifest, err := client.GetManifest(cmd.Context(), namespace, name, version)
-			if err != nil {
-				fmt.Printf("⚠ Model info not yet available (registry may not be configured)\n")
-				fmt.Printf("   Model: %s/%s@%s\n", namespace, name, version)
-				return nil
+			// Try to find adapter for this model
+			adapterRegistry := registry.NewAdapterRegistry()
+
+			// Register adapters in priority order (same as install command)
+			// 1. Local registry (if configured)
+			if cfg.Registry.URL != "" {
+				localAdapter := registry.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
+				adapterRegistry.Register(localAdapter)
 			}
 
-			fmt.Printf("\nModel: %s\n", manifest.FullVersion())
-			fmt.Printf("Description: %s\n", manifest.Metadata.Description)
-			fmt.Printf("Framework: %s %s\n", manifest.Spec.Framework.Name, manifest.Spec.Framework.Version)
-			fmt.Printf("License: %s\n", manifest.Metadata.License)
+			// 2. PyTorch Hub (if namespace matches)
+			pytorchAdapter := registry.NewPyTorchHubAdapter()
+			adapterRegistry.Register(pytorchAdapter)
+
+			// 3. TensorFlow Hub (if namespace matches)
+			tfhubAdapter := registry.NewTensorFlowHubAdapter()
+			adapterRegistry.Register(tfhubAdapter)
+
+			// 4. Hugging Face (fallback - can handle any model)
+			if cfg.Registry.EnableHuggingFace {
+				var hfAdapter *registry.HuggingFaceAdapter
+				if cfg.Registry.HuggingFaceToken != "" {
+					// Use token if provided (for gated/private models)
+					hfAdapter = registry.NewHuggingFaceAdapterWithToken(cfg.Registry.HuggingFaceToken)
+				} else {
+					// No token - works for public models
+					hfAdapter = registry.NewHuggingFaceAdapter()
+				}
+				adapterRegistry.Register(hfAdapter)
+			}
+
+			// Find the best adapter
+			adapter, err := adapterRegistry.FindAdapter(namespace, name)
+			if err != nil {
+				return fmt.Errorf("no repository adapter found for %s/%s: %w", namespace, name, err)
+			}
+
+			fmt.Printf("Using %s adapter\n", adapter.Name())
+
+			// Get manifest from adapter
+			manifest, err := adapter.GetManifest(cmd.Context(), namespace, name, version)
+			if err != nil {
+				return fmt.Errorf("failed to get model information: %w", err)
+			}
+
+			// Display model information
+			fmt.Printf("\n📦 Model Information\n")
+			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+			fmt.Printf("Name:        %s/%s@%s\n", manifest.Metadata.Namespace, manifest.Metadata.Name, manifest.Metadata.Version)
+			
+			if manifest.Metadata.Description != "" {
+				fmt.Printf("Description: %s\n", manifest.Metadata.Description)
+			}
+			
+			if manifest.Spec.Framework.Name != "" {
+				fmt.Printf("Framework:   %s", manifest.Spec.Framework.Name)
+				if manifest.Spec.Framework.Version != "" {
+					fmt.Printf(" %s", manifest.Spec.Framework.Version)
+				}
+				fmt.Println()
+			}
+			
+			if manifest.Metadata.License != "" {
+				fmt.Printf("License:     %s\n", manifest.Metadata.License)
+			}
+			
+			if len(manifest.Spec.Format.Files) > 0 {
+				fmt.Printf("\nFiles:\n")
+				totalSize := int64(0)
+				for _, file := range manifest.Spec.Format.Files {
+					sizeStr := "unknown"
+					if file.Size > 0 {
+						sizeStr = formatBytes(file.Size)
+						totalSize += file.Size
+					}
+					fmt.Printf("  - %s (%s", file.Path, sizeStr)
+					if file.SHA256 != "" {
+						fmt.Printf(", SHA256: %s", file.SHA256[:16]+"...")
+					}
+					fmt.Println(")")
+				}
+				if totalSize > 0 {
+					fmt.Printf("\nTotal Size:  %s\n", formatBytes(totalSize))
+				}
+			}
 
 			return nil
 		},
 	}
+}
+
+// formatBytes formats bytes into human-readable format
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 func installCmd() *cobra.Command {
