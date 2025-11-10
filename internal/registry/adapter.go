@@ -45,13 +45,13 @@ func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL stri
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	// Set Range header to only request first few bytes (validation only)
 	req.Header.Set("Range", "bytes=0-1023")
 
 	// Create client that follows redirects
 	client := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout: 30 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// Allow up to 10 redirects
 			if len(via) >= 10 {
@@ -84,7 +84,7 @@ func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL stri
 			bodyBytes := make([]byte, 2048) // Read first 2KB
 			n, _ := resp.Body.Read(bodyBytes)
 			bodyStr := strings.ToLower(string(bodyBytes[:n]))
-			
+
 			// Check for common error/search page indicators
 			// TensorFlow Hub redirects non-existent models to search page
 			errorIndicators := []string{
@@ -95,7 +95,7 @@ func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL stri
 				"404",
 				"page not found",
 			}
-			
+
 			// Check if it looks like a search/error page
 			for _, indicator := range errorIndicators {
 				if strings.Contains(bodyStr, indicator) {
@@ -106,7 +106,7 @@ func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL stri
 					}
 				}
 			}
-			
+
 			// Check if URL was redirected to search/browse page (but not model page)
 			finalURL := resp.Request.URL.String()
 			// TensorFlow Hub redirects to Kaggle, but valid models go to model pages
@@ -153,9 +153,9 @@ type RepositoryAdapter interface {
 
 // HuggingFaceAdapter implements RepositoryAdapter for Hugging Face Hub
 type HuggingFaceAdapter struct {
-	httpClient    *http.Client
-	baseURL       string
-	token         string // Optional HF token for gated/private models
+	httpClient     *http.Client
+	baseURL        string
+	token          string // Optional HF token for gated/private models
 	modelValidator *ModelValidator
 }
 
@@ -242,7 +242,7 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 	if namespace != "" && namespace != "hf" {
 		hfModelID = fmt.Sprintf("%s/%s", namespace, name)
 	}
-	
+
 	// Validate model exists on Hugging Face
 	modelURL := fmt.Sprintf("%s/%s", h.baseURL, hfModelID)
 	valid, err := h.modelValidator.ValidateModelExists(ctx, modelURL)
@@ -644,9 +644,9 @@ func (ar *AdapterRegistry) GetAllAdapters() []RepositoryAdapter {
 // PyTorch Hub models are hosted on GitHub repositories (e.g., pytorch/vision, pytorch/text)
 // Models are defined via hubconf.py files and can be loaded via torch.hub.load()
 type PyTorchHubAdapter struct {
-	httpClient    *http.Client
-	baseURL       string // GitHub API base URL
-	githubToken   string // Optional GitHub token for rate limit increases
+	httpClient     *http.Client
+	baseURL        string // GitHub API base URL
+	githubToken    string // Optional GitHub token for rate limit increases
 	modelValidator *ModelValidator
 }
 
@@ -729,7 +729,7 @@ func (p *PyTorchHubAdapter) GetManifest(ctx context.Context, namespace, name, ve
 
 	// Construct GitHub repo path (PyTorch Hub repos are under pytorch/ organization)
 	githubRepo := fmt.Sprintf("pytorch/%s", repo)
-	
+
 	// Validate GitHub repository exists
 	repoURL := fmt.Sprintf("https://github.com/%s", githubRepo)
 	valid, err := p.modelValidator.ValidateModelExists(ctx, repoURL)
@@ -739,7 +739,7 @@ func (p *PyTorchHubAdapter) GetManifest(ctx context.Context, namespace, name, ve
 	if !valid {
 		return nil, fmt.Errorf("repository not found: %s (model: %s/%s@%s)", githubRepo, namespace, name, version)
 	}
-	
+
 	// Validate that the specific model exists in hubconf.py
 	hubconfURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/main/hubconf.py", githubRepo)
 	hubconfReq, err := http.NewRequestWithContext(ctx, "GET", hubconfURL, nil)
@@ -749,7 +749,7 @@ func (p *PyTorchHubAdapter) GetManifest(ctx context.Context, namespace, name, ve
 	if p.githubToken != "" {
 		hubconfReq.Header.Set("Authorization", fmt.Sprintf("token %s", p.githubToken))
 	}
-	
+
 	hubconfResp, err := p.httpClient.Do(hubconfReq)
 	if err != nil {
 		// If we can't fetch hubconf.py, assume model might exist
@@ -758,7 +758,7 @@ func (p *PyTorchHubAdapter) GetManifest(ctx context.Context, namespace, name, ve
 		defer func() {
 			_ = hubconfResp.Body.Close()
 		}()
-		
+
 		if hubconfResp.StatusCode == http.StatusOK {
 			hubconfContent, err := io.ReadAll(hubconfResp.Body)
 			if err == nil {
@@ -1319,8 +1319,8 @@ func (p *PyTorchHubAdapter) updateManifestWithChecksum(manifest *types.Manifest,
 // TensorFlow Hub models are hosted at https://tfhub.dev
 // Models are organized by publisher (e.g., google, tensorflow) and can be SavedModel or TFLite format
 type TensorFlowHubAdapter struct {
-	httpClient    *http.Client
-	baseURL       string // TensorFlow Hub base URL
+	httpClient     *http.Client
+	baseURL        string // TensorFlow Hub base URL
 	modelValidator *ModelValidator
 }
 
@@ -1583,7 +1583,6 @@ func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name,
 
 	return manifest, nil
 }
-
 
 // createBasicManifest creates a basic manifest when metadata is not available
 func (t *TensorFlowHubAdapter) createBasicManifest(namespace, name, version, publisher, modelPath, modelURL string) *types.Manifest {
