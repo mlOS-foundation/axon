@@ -145,10 +145,14 @@ func (pb *PackageBuilder) Build(destPath string) error {
 	defer file.Close()
 
 	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
+	defer func() {
+		_ = gzWriter.Close()
+	}()
 
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
+	defer func() {
+		_ = tarWriter.Close()
+	}()
 
 	// Walk directory and add files to tar
 	return filepath.Walk(pb.tempDir, func(path string, info os.FileInfo, err error) error {
@@ -179,7 +183,9 @@ func (pb *PackageBuilder) Build(destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
+		defer func() {
+			_ = srcFile.Close()
+		}()
 
 		_, err = io.Copy(tarWriter, srcFile)
 		return err
@@ -232,7 +238,9 @@ func DownloadFile(ctx context.Context, client *http.Client, url, destPath string
 	if err != nil {
 		return fmt.Errorf("failed to download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -246,7 +254,9 @@ func DownloadFile(ctx context.Context, client *http.Client, url, destPath string
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	total := resp.ContentLength
 	var current int64
