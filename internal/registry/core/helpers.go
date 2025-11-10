@@ -99,7 +99,9 @@ func (pb *PackageBuilder) AddFile(srcPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer src.Close()
+	defer func() {
+		_ = src.Close()
+	}()
 
 	dst, err := os.Create(destFullPath)
 	if err != nil {
