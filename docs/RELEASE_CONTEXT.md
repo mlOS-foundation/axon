@@ -49,11 +49,17 @@ gh run watch
 
 ## CHANGELOG.md Format
 
+The CHANGELOG.md format directly impacts the GitHub release page. Follow this format for best results:
+
 ```markdown
 ## [X.Y.Z] - YYYY-MM-DD
 
 ### Added
-- Feature description (#PR_NUMBER)
+- **Feature Name**: Detailed description of the feature (#PR_NUMBER)
+  - Sub-feature or detail
+  - Another detail
+  - Usage example: `axon install example/model@latest`
+- **Another Feature**: Description (#PR_NUMBER)
 
 ### Changed
 - Change description (#PR_NUMBER)
@@ -69,7 +75,19 @@ gh run watch
 
 ### Security
 - Security fix (#PR_NUMBER)
+
+### Documentation
+- Documentation updates (#PR_NUMBER)
 ```
+
+**Best Practices for Release Notes**:
+
+1. **Be Descriptive**: Write changelog entries as if they'll appear on the release page (they will!)
+2. **Include Examples**: For new features, include usage examples in the "Added" section
+3. **Link PRs**: Always include PR numbers in parentheses (e.g., `(#13)`)
+4. **Use Bold for Features**: Use `**Feature Name**` for major features to make them stand out
+5. **Group Related Changes**: Use sub-bullets to group related changes under a feature
+6. **Include Impact**: Mention the impact or benefit of changes (e.g., "Axon now supports 72%+ of ML practitioners")
 
 ## Release Tag Message Template
 
@@ -107,13 +125,41 @@ The GitHub Actions workflow (`.github/workflows/release.yml`) automatically:
 3. Builds binaries for all platforms:
    - Linux: amd64, arm64
    - macOS: amd64, arm64
+   - Windows: amd64
 4. Creates archives with naming: `axon_${VERSION}_${GOOS}_${GOARCH}.tar.gz`
 5. Generates SHA256 checksums
 6. Creates GitHub Release with:
    - Tag name as release name
-   - Tag message as release body
+   - **Detailed release notes** extracted from CHANGELOG.md:
+     - "What's New" section (key features from "Added" section)
+     - Full changelog for the version
+     - Installation instructions
+     - Supported platforms
+     - Documentation links
    - All binary assets
    - Checksum files
+
+### Release Page Details
+
+The release workflow automatically generates a comprehensive release page that includes:
+
+1. **Installation Instructions**: One-line installer command
+2. **What's New**: Key features extracted from the "Added" section of CHANGELOG.md
+3. **Full Changelog**: Complete changelog entry for the version
+4. **Supported Platforms**: List of all supported OS/architecture combinations
+5. **Documentation Links**: Links to relevant documentation files
+
+**Important**: To ensure detailed release notes appear on the GitHub release page:
+
+- ✅ **Always update CHANGELOG.md** before creating a release tag
+- ✅ **Use proper CHANGELOG format** with "Added", "Changed", "Fixed", etc. sections
+- ✅ **Include PR numbers** in changelog entries (e.g., `(#13)`)
+- ✅ **Be descriptive** in changelog entries - they appear on the release page
+- ✅ **Include usage examples** in the "Added" section for new features
+
+The workflow automatically extracts:
+- Features from the "### Added" section (shown in "What's New")
+- Full changelog entry (shown in "Full Changelog")
 
 ## Platform Support
 

@@ -139,15 +139,53 @@ jobs:
           echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Get detailed release notes
+        id: release_details
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          # Extract detailed information from CHANGELOG.md
+          # This extracts the full section including all subsections
+          awk -v version="[$VERSION]" '
+            /^## \[/ { 
+              if (found) exit
+              if ($0 ~ "^## " version) { found=1; next }
+            }
+            found { 
+              if (/^## \[/) exit
+              print 
+            }
+          ' CHANGELOG.md > release_details.txt || echo ""
+          
+          # Extract key features (Added section)
+          awk -v version="[$VERSION]" '
+            /^## \[/ { 
+              if (found) exit
+              if ($0 ~ "^## " version) { found=1; in_added=0; next }
+            }
+            found {
+              if (/^### Added/) { in_added=1; next }
+              if (/^### /) { in_added=0 }
+              if (in_added && /^-/) { print }
+            }
+          ' CHANGELOG.md > features.txt || echo ""
+          
+          echo "details<<EOF" >> $GITHUB_OUTPUT
+          cat release_details.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "features<<EOF" >> $GITHUB_OUTPUT
+          cat features.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: release/*
           name: v${{ steps.get_version.outputs.version }}
           body: |
-            ## Axon v${{ steps.get_version.outputs.version }} Release
+            ## 🚀 Axon v${{ steps.get_version.outputs.version }} Release
 
-            ### Installation
+            ### 📦 Installation
 
             ```bash
             curl -sSL axon.mlosfoundation.org | sh
@@ -155,16 +193,25 @@ jobs:
 
             Or download manually from the assets below.
 
-            ### Supported Platforms
+            ### 🎯 What's New
+
+            ${{ steps.release_details.outputs.features }}
+
+            ### 📋 Full Changelog
+
+            ${{ steps.release_details.outputs.details }}
+
+            ### 🖥️ Supported Platforms
 
             - **macOS**: amd64, arm64
             - **Linux**: amd64, arm64
+            - **Windows**: amd64
 
-            ### Changes
+            ### 📚 Documentation
 
-            ${{ steps.changelog.outputs.changelog }}
-
-            For full details, see [CHANGELOG.md](https://github.com/mlOS-foundation/axon/blob/v${{ steps.get_version.outputs.version }}/CHANGELOG.md).
+            - [Full Changelog](https://github.com/mlOS-foundation/axon/blob/v${{ steps.get_version.outputs.version }}/CHANGELOG.md)
+            - [Repository Adapters](https://github.com/mlOS-foundation/axon/blob/v${{ steps.get_version.outputs.version }}/docs/REPOSITORY_ADAPTERS.md)
+            - [Adapter Roadmap](https://github.com/mlOS-foundation/axon/blob/v${{ steps.get_version.outputs.version }}/docs/ADAPTER_ROADMAP.md)
 
             ---
 

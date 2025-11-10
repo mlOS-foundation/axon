@@ -9,10 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 - ModelScope adapter (Phase 1)
-- TensorFlow Hub adapter (Phase 1)
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
+
+## [1.2.0] - 2024-11-10
+
+### Added
+- **TensorFlow Hub Adapter**: Full support for installing models from TensorFlow Hub (tfhub.dev) (#13)
+  - Automatic detection of TensorFlow Hub models via `tfhub/` and `tf/` namespaces
+  - Support for SavedModel and TFLite formats
+  - REST API integration for model discovery and metadata fetching
+  - Automatic manifest creation with model metadata
+  - On-the-fly package generation from TensorFlow Hub downloads
+  - Comprehensive unit tests with mock server support
+- **Enhanced adapter priority**: TensorFlow Hub adapter registered with higher priority than Hugging Face
+- **Validation script updates**: Added test case for TensorFlow Hub installation in `validate-use-case.sh`
+
+### Changed
+- **Adapter registration order**: Updated to check TensorFlow Hub adapter before Hugging Face fallback
+- **Local registry adapter**: Updated `CanHandle()` to exclude TensorFlow Hub namespaces (`tfhub`, `tf`)
+- **Coverage statistics**: Axon now supports 72%+ of ML practitioners (Hugging Face: 60%+, PyTorch Hub: 5%+, TensorFlow Hub: 7%+)
+
+### Documentation
+- Updated `README.md` with TensorFlow Hub examples and usage
+- Updated `ADAPTER_ROADMAP.md` marking TensorFlow Hub as available (v1.2.0+)
+- Updated `REPOSITORY_ADAPTERS.md` with detailed TensorFlow Hub adapter section
+- Updated website (`ecosystem.html`) to show TensorFlow Hub as available
 
 ## [1.1.2] - 2024-11-10
 
