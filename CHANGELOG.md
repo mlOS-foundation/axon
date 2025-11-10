@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
 
+## [1.2.1] - 2024-11-10
+
+### Fixed
+- **Info command adapter support**: Fixed `axon info` command to use adapter registry system instead of old registry client (#14)
+  - Now works with all adapters (Hugging Face, PyTorch Hub, TensorFlow Hub)
+  - Displays comprehensive model information including files, sizes, and metadata
+  - Previously showed "Model info not yet available" for all models
+  - Added `formatBytes()` helper for human-readable file sizes
+
+### Changed
+- **Info command display**: Enhanced model information output with better formatting and file details
+
 ## [1.2.0] - 2024-11-10
 
 ### Added
