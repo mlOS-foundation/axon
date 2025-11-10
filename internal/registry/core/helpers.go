@@ -126,7 +126,9 @@ func (pb *PackageBuilder) AddFileFromReader(reader io.Reader, destPath string) e
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func() {
+		_ = dst.Close()
+	}()
 
 	if _, err := io.Copy(dst, reader); err != nil {
 		return fmt.Errorf("failed to copy file: %w", err)
