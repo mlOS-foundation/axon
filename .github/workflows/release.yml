@@ -143,39 +143,54 @@ jobs:
         id: release_details
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          # Extract detailed information from CHANGELOG.md
-          # This extracts the full section including all subsections
-          awk -v version="[$VERSION]" '
+          
+          # Extract full changelog section for this version
+          awk -v version="$VERSION" '
+            BEGIN { found=0 }
             /^## \[/ { 
               if (found) exit
-              if ($0 ~ "^## " version) { found=1; next }
+              if ($0 ~ "^## \\[" version "\\]") { found=1; next }
             }
             found { 
               if (/^## \[/) exit
               print 
             }
-          ' CHANGELOG.md > release_details.txt || echo ""
+          ' CHANGELOG.md > release_details.txt
           
-          # Extract key features (Added section)
-          awk -v version="[$VERSION]" '
+          # Extract key features from "Added" section
+          awk -v version="$VERSION" '
+            BEGIN { found=0; in_added=0 }
             /^## \[/ { 
               if (found) exit
-              if ($0 ~ "^## " version) { found=1; in_added=0; next }
+              if ($0 ~ "^## \\[" version "\\]") { found=1; next }
             }
             found {
               if (/^### Added/) { in_added=1; next }
               if (/^### /) { in_added=0 }
-              if (in_added && /^-/) { print }
+              if (in_added) { print }
             }
-          ' CHANGELOG.md > features.txt || echo ""
+          ' CHANGELOG.md > features.txt
           
-          echo "details<<EOF" >> $GITHUB_OUTPUT
-          cat release_details.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Debug output
+          echo "=== Release Details ==="
+          cat release_details.txt
+          echo ""
+          echo "=== Features ==="
+          cat features.txt
+          echo ""
           
-          echo "features<<EOF" >> $GITHUB_OUTPUT
-          cat features.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          {
+            echo "details<<EOF"
+            cat release_details.txt
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
+          {
+            echo "features<<EOF"
+            cat features.txt
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

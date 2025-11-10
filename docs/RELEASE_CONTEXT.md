@@ -156,10 +156,22 @@ The release workflow automatically generates a comprehensive release page that i
 - ✅ **Include PR numbers** in changelog entries (e.g., `(#13)`)
 - ✅ **Be descriptive** in changelog entries - they appear on the release page
 - ✅ **Include usage examples** in the "Added" section for new features
+- ✅ **Use sub-bullets** for feature details (they will be included in release notes)
+- ✅ **Ensure "Added" section has content** - this populates the "What's New" section
 
 The workflow automatically extracts:
-- Features from the "### Added" section (shown in "What's New")
-- Full changelog entry (shown in "Full Changelog")
+- **Features** from the "### Added" section (shown in "🎯 What's New")
+  - Includes all bullet points and sub-bullets under "Added"
+  - Preserves formatting (bold, code blocks, etc.)
+- **Full changelog** entry (shown in "📋 Full Changelog")
+  - Includes all sections: Added, Changed, Fixed, Documentation, etc.
+  - Preserves all formatting and structure
+
+**Note**: If "What's New" or "Full Changelog" sections appear empty:
+1. Check that CHANGELOG.md has the version entry with proper format: `## [X.Y.Z] - YYYY-MM-DD`
+2. Verify the "### Added" section exists and has content
+3. Check the release workflow logs for extraction errors
+4. The workflow includes debug output showing extracted content
 
 ## Platform Support
 
