@@ -2,28 +2,130 @@
 
 Axon supports **pluggable repository adapters** that allow it to work with multiple model repositories in real-time. This enables Axon to download models directly from Hugging Face, local registries, or any custom repository without needing pre-packaged `.axon` files.
 
+> **Note**: The adapter framework was refactored in **v1.3.0** to use GoF design patterns. See [ADAPTER_FRAMEWORK.md](./ADAPTER_FRAMEWORK.md) for complete framework documentation.
+
 ## Architecture
 
-Axon uses an **adapter pattern** to support multiple model repositories:
+Axon uses a **refactored adapter framework** (v1.3.0+) built on GoF design patterns to support multiple model repositories:
+
+### Framework Overview
+
+The adapter framework implements several design patterns:
+
+- **Adapter Pattern**: `RepositoryAdapter` interface unifies different repositories
+- **Strategy Pattern**: Each adapter implements its own strategy for model access
+- **Factory Pattern**: `AdapterFactory` enables dynamic adapter creation
+- **Builder Pattern**: `AdapterBuilder` provides fluent configuration
+- **Registry Pattern**: `AdapterRegistry` manages all adapters
+
+### Architecture Diagram
 
 ```
-┌─────────────────┐
-│   axon install  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ AdapterRegistry │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌─────────┐ ┌──────────────┐
-│  Local  │ │ Hugging Face │
-│ Registry│ │   Adapter    │
-│ Adapter │ └──────────────┘
-└─────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Axon CLI                               │
+│              (cmd/axon/commands.go)                          │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              AdapterRegistry (Registry Pattern)              │
+│              (internal/registry/core/adapter.go)             │
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  RegisterDefaultAdapters()                         │     │
+│  │  - Local Registry (if configured)                  │     │
+│  │  - PyTorch Hub                                      │     │
+│  │  - TensorFlow Hub                                   │     │
+│  │  - Hugging Face (fallback)                         │     │
+│  └────────────────────────────────────────────────────┘     │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+         ┌─────────────┼─────────────┐
+         │             │             │
+         ▼             ▼             ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│   Builtin   │ │  Examples    │ │   Custom    │
+│  Adapters   │ │  Adapters    │ │  Adapters   │
+│             │ │              │ │             │
+│ • Hugging   │ │ • ModelScope │ │ (User-      │
+│   Face      │ │   (Example)  │ │  defined)   │
+│ • PyTorch   │ │              │ │             │
+│   Hub       │ │              │ │             │
+│ • TensorFlow│ │              │ │             │
+│   Hub       │ │              │ │             │
+│ • Local     │ │              │ │             │
+└─────────────┘ └─────────────┘ └─────────────┘
+         │             │             │
+         └─────────────┼─────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Core Framework (Helper Utilities)               │
+│              (internal/registry/core/)                       │
+│                                                              │
+│  • HTTPClient      - HTTP requests with auth                 │
+│  • ModelValidator  - Model existence validation              │
+│  • PackageBuilder  - Create .axon packages                   │
+│  • DownloadFile    - Download with progress                  │
+│  • ComputeChecksum - SHA256 checksums                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Design Patterns in Detail
+
+#### 1. Adapter Pattern
+
+The `RepositoryAdapter` interface provides a unified way to access different model repositories:
+
+```go
+type RepositoryAdapter interface {
+    Name() string
+    CanHandle(namespace, name string) bool
+    GetManifest(ctx, namespace, name, version) (*Manifest, error)
+    DownloadPackage(ctx, manifest, destPath, progress) error
+    Search(ctx, query) ([]SearchResult, error)
+}
+```
+
+#### 2. Strategy Pattern
+
+Each adapter implements its own strategy for:
+- **Model Detection**: `CanHandle()` determines if adapter can process a model
+- **Metadata Fetching**: `GetManifest()` retrieves model information
+- **Download Strategy**: `DownloadPackage()` implements repository-specific download logic
+
+#### 3. Factory Pattern
+
+Adapters can be created dynamically via factories:
+
+```go
+type AdapterFactory interface {
+    Create(config AdapterConfig) (RepositoryAdapter, error)
+    Name() string
+}
+```
+
+#### 4. Builder Pattern
+
+Fluent configuration for adapters:
+
+```go
+config := core.NewAdapterBuilder().
+    WithBaseURL("https://api.example.com").
+    WithToken("my-token").
+    WithTimeout(300).
+    Build()
+```
+
+#### 5. Registry Pattern
+
+Centralized adapter management:
+
+```go
+registry := core.NewAdapterRegistry()
+registry.Register(adapter1)
+registry.Register(adapter2)
+adapter, _ := registry.FindAdapter("namespace", "model")
 ```
 
 ## Supported Adapters
