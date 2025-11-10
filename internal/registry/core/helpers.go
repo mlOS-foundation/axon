@@ -105,7 +105,9 @@ func (pb *PackageBuilder) AddFile(srcPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func() {
+		_ = dst.Close()
+	}()
 
 	if _, err := io.Copy(dst, src); err != nil {
 		return fmt.Errorf("failed to copy file: %w", err)
