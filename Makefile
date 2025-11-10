@@ -1,10 +1,17 @@
-.PHONY: build test install clean lint fmt help vet coverage
+.PHONY: build test install clean lint fmt help vet coverage install-tools
 
 # Build variables
 BINARY_NAME=axon
 VERSION?=v0.1.0
 BUILD_DIR=bin
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
+
+# Tool versions (matching CI)
+GOLANGCI_LINT_VERSION=v1.64.8
+GOIMPORTS_VERSION=latest
+
+# Ensure GOPATH/bin is in PATH
+export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -31,19 +38,39 @@ test-coverage: ## Run tests with coverage
 
 coverage: test-coverage ## Alias for test-coverage
 
-lint: ## Run linters
+install-tools: ## Install all required CI tools (golangci-lint, goimports)
+	@echo "Installing CI tools..."
+	@if ! command -v golangci-lint > /dev/null; then \
+		echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	else \
+		echo "✓ golangci-lint already installed"; \
+	fi
+	@if ! command -v goimports > /dev/null; then \
+		echo "Installing goimports..."; \
+		go install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION); \
+	else \
+		echo "✓ goimports already installed"; \
+	fi
+	@echo "✓ All tools installed. Make sure $(shell go env GOPATH)/bin is in your PATH"
+
+lint: install-tools ## Run linters
 	@echo "Running linters..."
 	@if command -v golangci-lint > /dev/null; then \
-		golangci-lint run ./...; \
+		golangci-lint run --timeout=5m ./...; \
 	else \
-		echo "golangci-lint not installed. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
-		go vet ./...; \
+		echo "❌ golangci-lint not found. Run 'make install-tools' first."; \
+		exit 1; \
 	fi
 
-fmt: ## Format code
+fmt: install-tools ## Format code
 	@echo "Formatting code..."
 	@go fmt ./...
-	@goimports -w .
+	@if command -v goimports > /dev/null; then \
+		goimports -w .; \
+	else \
+		echo "⚠️  goimports not found. Run 'make install-tools' to install it."; \
+	fi
 	@echo "✓ Code formatted"
 
 fmt-check: ## Check code formatting without modifying
