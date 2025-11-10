@@ -207,7 +207,11 @@ func installCmd() *cobra.Command {
 			pytorchAdapter := registry.NewPyTorchHubAdapter()
 			adapterRegistry.Register(pytorchAdapter)
 
-			// 3. Hugging Face (fallback - can handle any model)
+			// 3. TensorFlow Hub (if namespace matches)
+			tfhubAdapter := registry.NewTensorFlowHubAdapter()
+			adapterRegistry.Register(tfhubAdapter)
+
+			// 4. Hugging Face (fallback - can handle any model)
 			if cfg.Registry.EnableHuggingFace {
 				var hfAdapter *registry.HuggingFaceAdapter
 				if cfg.Registry.HuggingFaceToken != "" {

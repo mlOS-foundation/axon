@@ -461,9 +461,9 @@ func (l *LocalRegistryAdapter) Name() string {
 // CanHandle returns true if this adapter can handle the given namespace and name.
 func (l *LocalRegistryAdapter) CanHandle(namespace, name string) bool {
 	// Local registry can only handle models that are NOT from known adapters
-	// Known adapter namespaces: hf, pytorch, torch, modelscope, tfhub
+	// Known adapter namespaces: hf, pytorch, torch, modelscope, tfhub, tf
 	if namespace == "hf" || namespace == "pytorch" || namespace == "torch" ||
-		namespace == "modelscope" || namespace == "tfhub" {
+		namespace == "modelscope" || namespace == "tfhub" || namespace == "tf" {
 		return false
 	}
 	// Local registry can handle models if it's configured and model is not from a known adapter
@@ -1125,6 +1125,479 @@ func (p *PyTorchHubAdapter) createAxonPackage(srcDir, destPath string) error {
 
 // updateManifestWithChecksum updates manifest with computed checksum
 func (p *PyTorchHubAdapter) updateManifestWithChecksum(manifest *types.Manifest, packagePath string) error {
+	hasher := sha256.New()
+	file, err := os.Open(packagePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if _, err := io.Copy(hasher, file); err != nil {
+		return err
+	}
+
+	checksum := hex.EncodeToString(hasher.Sum(nil))
+	stat, err := os.Stat(packagePath)
+	if err != nil {
+		return err
+	}
+
+	manifest.Distribution.Package.SHA256 = checksum
+	manifest.Distribution.Package.Size = stat.Size()
+	return nil
+}
+
+// TensorFlowHubAdapter implements RepositoryAdapter for TensorFlow Hub
+// TensorFlow Hub models are hosted at https://tfhub.dev
+// Models are organized by publisher (e.g., google, tensorflow) and can be SavedModel or TFLite format
+type TensorFlowHubAdapter struct {
+	httpClient *http.Client
+	baseURL    string // TensorFlow Hub base URL
+}
+
+// NewTensorFlowHubAdapter creates a new TensorFlow Hub adapter
+func NewTensorFlowHubAdapter() *TensorFlowHubAdapter {
+	return &TensorFlowHubAdapter{
+		httpClient: &http.Client{
+			Timeout: 5 * time.Minute,
+		},
+		baseURL: "https://tfhub.dev",
+	}
+}
+
+// Name returns the name of the adapter.
+func (t *TensorFlowHubAdapter) Name() string {
+	return "tensorflow-hub"
+}
+
+// CanHandle returns true if this adapter can handle the given namespace and name.
+func (t *TensorFlowHubAdapter) CanHandle(namespace, name string) bool {
+	// TensorFlow Hub can handle models with "tfhub" or "tf" namespace
+	return namespace == "tfhub" || namespace == "tf"
+}
+
+// Search searches for models matching the query.
+// TensorFlow Hub provides a REST API for searching models
+func (t *TensorFlowHubAdapter) Search(ctx context.Context, query string) ([]types.SearchResult, error) {
+	// TensorFlow Hub search API: https://tfhub.dev/api/v1/models?q={query}
+	searchURL := fmt.Sprintf("%s/api/v1/models?q=%s", t.baseURL, query)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := t.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search models: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		// If search API is not available, return empty results
+		return []types.SearchResult{}, nil
+	}
+
+	var searchResponse struct {
+		Results []struct {
+			Publisher  string `json:"publisher"`
+			Name       string `json:"name"`
+			Version    string `json:"version"`
+			Description string `json:"description"`
+		} `json:"results"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
+		// If decode fails, return empty results
+		return []types.SearchResult{}, nil
+	}
+
+	var results []types.SearchResult
+	for _, model := range searchResponse.Results {
+		results = append(results, types.SearchResult{
+			Namespace:   "tfhub",
+			Name:        fmt.Sprintf("%s/%s", model.Publisher, model.Name),
+			Version:     model.Version,
+			Description: model.Description,
+		})
+	}
+
+	return results, nil
+}
+
+// GetManifest retrieves the manifest for the specified model.
+// Model format: tfhub/{publisher}/{model_path}@version
+// Example: tfhub/google/imagenet/resnet_v2_50/classification/5
+func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name, version string) (*types.Manifest, error) {
+	// Parse model specification
+	// Format: {publisher}/{model_path} (e.g., "google/imagenet/resnet_v2_50/classification/5")
+	parts := strings.Split(name, "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid TensorFlow Hub model format: %s (expected: publisher/model_path)", name)
+	}
+
+	publisher := parts[0]
+	modelPath := strings.Join(parts[1:], "/")
+
+	// Construct model URL
+	modelURL := fmt.Sprintf("%s/%s/%s", t.baseURL, publisher, modelPath)
+	if version != "latest" && version != "" {
+		modelURL = fmt.Sprintf("%s/%s", modelURL, version)
+	}
+
+	// Try to fetch model metadata (optional - if API is available)
+	metadataURL := fmt.Sprintf("%s?format=json", modelURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", metadataURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := t.httpClient.Do(req)
+	if err != nil {
+		// If metadata fetch fails, create a basic manifest
+		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	var metadata struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Version     string `json:"version"`
+		Format      string `json:"format"` // "saved_model" or "tflite"
+		Inputs      []struct {
+			Name  string   `json:"name"`
+			DType string   `json:"dtype"`
+			Shape []int    `json:"shape"`
+		} `json:"inputs"`
+		Outputs []struct {
+			Name  string   `json:"name"`
+			DType string   `json:"dtype"`
+			Shape []int    `json:"shape"`
+		} `json:"outputs"`
+	}
+
+	// If metadata fetch succeeds, use it; otherwise use defaults
+	if resp.StatusCode == http.StatusOK {
+		if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+			// If decode fails, use defaults
+			return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+		}
+	} else {
+		// Use defaults if metadata fetch fails
+		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+	}
+
+	// Determine file extension based on format
+	fileExt := ".tar.gz" // SavedModel format is typically tar.gz
+	if metadata.Format == "tflite" {
+		fileExt = ".tflite"
+	}
+
+	// Create manifest with metadata
+	manifest := &types.Manifest{
+		APIVersion: "v1",
+		Kind:       "Model",
+		Metadata: types.Metadata{
+			Name:        name,
+			Namespace:   namespace,
+			Version:     version,
+			Description: metadata.Description,
+			License:     "Apache-2.0", // TensorFlow models typically use Apache-2.0
+			Created:     time.Now(),
+			Updated:     time.Now(),
+		},
+		Spec: types.Spec{
+			Framework: types.Framework{
+				Name:    "TensorFlow",
+				Version: "2.0.0", // Will be determined from actual model
+			},
+			Format: types.Format{
+				Type: metadata.Format,
+				Files: []types.ModelFile{
+					{
+						Path:   fmt.Sprintf("model%s", fileExt),
+						Size:   0, // Will be determined during download
+						SHA256: "", // Will be computed during download
+					},
+				},
+			},
+			IO: types.IO{
+				Inputs:  []types.IOSpec{},
+				Outputs: []types.IOSpec{},
+			},
+			Requirements: types.Requirements{
+				Compute: types.Compute{
+					CPU: types.CPURequirement{
+						MinCores:         2,
+						RecommendedCores: 4,
+					},
+					Memory: types.MemoryRequirement{
+						MinGB:         2.0,
+						RecommendedGB: 4.0,
+					},
+				},
+			},
+		},
+		Distribution: types.Distribution{
+			Package: types.PackageInfo{
+				URL: modelURL,
+			},
+			Registry: types.RegistryInfo{
+				URL:       t.baseURL,
+				Namespace: "tfhub",
+			},
+		},
+	}
+
+	// Add input/output specs if available
+	for _, input := range metadata.Inputs {
+		manifest.Spec.IO.Inputs = append(manifest.Spec.IO.Inputs, types.IOSpec{
+			Name:  input.Name,
+			DType: input.DType,
+			Shape: input.Shape,
+		})
+	}
+
+	for _, output := range metadata.Outputs {
+		manifest.Spec.IO.Outputs = append(manifest.Spec.IO.Outputs, types.IOSpec{
+			Name:  output.Name,
+			DType: output.DType,
+			Shape: output.Shape,
+		})
+	}
+
+	return manifest, nil
+}
+
+// createBasicManifest creates a basic manifest when metadata is not available
+func (t *TensorFlowHubAdapter) createBasicManifest(namespace, name, version, publisher, modelPath, modelURL string) *types.Manifest {
+	return &types.Manifest{
+		APIVersion: "v1",
+		Kind:       "Model",
+		Metadata: types.Metadata{
+			Name:        name,
+			Namespace:   namespace,
+			Version:     version,
+			Description: fmt.Sprintf("TensorFlow Hub model: %s/%s", publisher, modelPath),
+			License:     "Apache-2.0",
+			Created:     time.Now(),
+			Updated:     time.Now(),
+		},
+		Spec: types.Spec{
+			Framework: types.Framework{
+				Name:    "TensorFlow",
+				Version: "2.0.0",
+			},
+			Format: types.Format{
+				Type: "saved_model",
+				Files: []types.ModelFile{
+					{
+						Path:   "model.tar.gz",
+						Size:   0,
+						SHA256: "",
+					},
+				},
+			},
+			IO: types.IO{
+				Inputs: []types.IOSpec{
+					{
+						Name:  "input",
+						DType: "float32",
+						Shape: []int{-1, -1},
+					},
+				},
+				Outputs: []types.IOSpec{
+					{
+						Name:  "output",
+						DType: "float32",
+						Shape: []int{-1, -1},
+					},
+				},
+			},
+			Requirements: types.Requirements{
+				Compute: types.Compute{
+					CPU: types.CPURequirement{
+						MinCores:         2,
+						RecommendedCores: 4,
+					},
+					Memory: types.MemoryRequirement{
+						MinGB:         2.0,
+						RecommendedGB: 4.0,
+					},
+				},
+			},
+		},
+		Distribution: types.Distribution{
+			Package: types.PackageInfo{
+				URL: modelURL,
+			},
+			Registry: types.RegistryInfo{
+				URL:       t.baseURL,
+				Namespace: "tfhub",
+			},
+		},
+	}
+}
+
+// DownloadPackage downloads the model package to the specified destination path.
+// TensorFlow Hub models are typically SavedModel format (tar.gz) or TFLite format
+func (t *TensorFlowHubAdapter) DownloadPackage(ctx context.Context, manifest *types.Manifest, destPath string, progress ProgressCallback) error {
+	// Parse model specification
+	parts := strings.Split(manifest.Metadata.Name, "/")
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid TensorFlow Hub model format: %s", manifest.Metadata.Name)
+	}
+
+	publisher := parts[0]
+	modelPath := strings.Join(parts[1:], "/")
+	version := manifest.Metadata.Version
+
+	// Construct model URL
+	modelURL := fmt.Sprintf("%s/%s/%s", t.baseURL, publisher, modelPath)
+	if version != "latest" && version != "" {
+		modelURL = fmt.Sprintf("%s/%s", modelURL, version)
+	}
+
+	// TensorFlow Hub models are downloaded as tar.gz files
+	// URL format: https://tfhub.dev/{publisher}/{model_path}/{version}?tf-hub-format=compressed
+	downloadURL := fmt.Sprintf("%s?tf-hub-format=compressed", modelURL)
+
+	// Create temp directory for model files
+	tempDir := filepath.Join(filepath.Dir(destPath), "tmp", fmt.Sprintf("tfhub-%s-%s-%d", publisher, strings.ReplaceAll(modelPath, "/", "-"), time.Now().Unix()))
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Download the model
+	modelFile := filepath.Join(tempDir, "model.tar.gz")
+	if err := t.downloadFile(ctx, downloadURL, modelFile, 0, progress); err != nil {
+		return fmt.Errorf("failed to download model: %w", err)
+	}
+
+	// Create .axon package
+	if err := t.createAxonPackage(tempDir, destPath); err != nil {
+		return fmt.Errorf("failed to create package: %w", err)
+	}
+
+	// Update manifest with checksum
+	if err := t.updateManifestWithChecksum(manifest, destPath); err != nil {
+		fmt.Printf("Warning: failed to update manifest checksum: %v\n", err)
+	}
+
+	return nil
+}
+
+// downloadFile downloads a file from URL to destination with progress tracking
+func (t *TensorFlowHubAdapter) downloadFile(ctx context.Context, url, destPath string, expectedSize int64, progress ProgressCallback) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := t.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to download: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	// Create destination file
+	outFile, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer func() {
+		_ = outFile.Close()
+	}()
+
+	// Copy with progress tracking
+	reader := &progressReader{
+		Reader:     resp.Body,
+		Total:      resp.ContentLength,
+		Downloaded: 0,
+		Callback:   progress,
+	}
+
+	_, err = io.Copy(outFile, reader)
+	return err
+}
+
+// createAxonPackage creates a tar.gz package from a directory
+func (t *TensorFlowHubAdapter) createAxonPackage(srcDir, destPath string) error {
+	file, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create package file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	gzWriter := gzip.NewWriter(file)
+	defer func() {
+		_ = gzWriter.Close()
+	}()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer func() {
+		_ = tarWriter.Close()
+	}()
+
+	// Walk directory and add files to tar
+	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = relPath
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = srcFile.Close()
+		}()
+
+		_, err = io.Copy(tarWriter, srcFile)
+		return err
+	})
+}
+
+// updateManifestWithChecksum updates manifest with computed checksum
+func (t *TensorFlowHubAdapter) updateManifestWithChecksum(manifest *types.Manifest, packagePath string) error {
 	hasher := sha256.New()
 	file, err := os.Open(packagePath)
 	if err != nil {

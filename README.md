@@ -47,6 +47,10 @@ axon install hf/roberta-base@latest
 axon install pytorch/vision/resnet50@latest
 axon install pytorch/vision/alexnet@latest
 
+# Install TensorFlow Hub models (v1.2.0+)
+axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
+axon install tfhub/google/universal-sentence-encoder/4@latest
+
 # Or use local registry (optional)
 axon registry set default http://localhost:8080
 axon install nlp/bert-base-uncased@1.0.0
@@ -75,8 +79,8 @@ Axon uses a **pluggable adapter architecture** that enables installation from an
 
 - ✅ **Hugging Face Hub** - Available now (100,000+ models, 60%+ of ML practitioners)
 - ✅ **PyTorch Hub** - Available in v1.1.0+ (5%+ coverage, research focus)
+- ✅ **TensorFlow Hub** - Available in v1.2.0+ (7%+ coverage, production deployments)
 - 🚧 **ModelScope** - Coming in Phase 1 (8%+ coverage, multimodal & enterprise)
-- 🚧 **TensorFlow Hub** - Coming in Phase 1 (7%+ coverage, production deployments)
 
 **Note**: ONNX Model Zoo has been deprecated (July 2025) and models have transitioned to Hugging Face. See [ONNX deprecation notice](https://onnx.ai/models/).
 
@@ -88,8 +92,8 @@ Axon uses a **pluggable adapter architecture** that enables installation from an
 # Adapters are automatically selected based on model namespace
 axon install hf/model-name@latest           # → Hugging Face adapter
 axon install pytorch/vision/resnet50@latest # → PyTorch Hub adapter (v1.1.0+)
+axon install tfhub/model-name@latest        # → TensorFlow Hub adapter (v1.2.0+)
 axon install modelscope/model-name@latest  # → ModelScope adapter (Phase 1)
-axon install tfhub/model-name@latest        # → TensorFlow Hub adapter (Phase 1)
 ```
 
 No configuration needed - Axon automatically detects and uses the right adapter!

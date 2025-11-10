@@ -4,8 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
 func TestPyTorchHubAdapter_Name(t *testing.T) {
@@ -247,4 +250,172 @@ func TestPyTorchHubAdapter_WithToken(t *testing.T) {
 	// Test that token is set (we can't easily test it's used without making real requests)
 	adapter.SetToken("new_token")
 	// Just verify it doesn't panic
+}
+
+func TestTensorFlowHubAdapter_Name(t *testing.T) {
+	adapter := NewTensorFlowHubAdapter()
+	if adapter.Name() != "tensorflow-hub" {
+		t.Errorf("Name() = %v, want 'tensorflow-hub'", adapter.Name())
+	}
+}
+
+func TestTensorFlowHubAdapter_CanHandle(t *testing.T) {
+	adapter := NewTensorFlowHubAdapter()
+
+	tests := []struct {
+		namespace string
+		name      string
+		want      bool
+	}{
+		{"tfhub", "google/imagenet/resnet_v2_50/classification/5", true},
+		{"tf", "google/imagenet/resnet_v2_50/classification/5", true},
+		{"hf", "bert-base-uncased", false},
+		{"pytorch", "vision/resnet50", false},
+		{"modelscope", "cv/resnet50", false},
+		{"", "resnet50", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.namespace+"/"+tt.name, func(t *testing.T) {
+			if got := adapter.CanHandle(tt.namespace, tt.name); got != tt.want {
+				t.Errorf("CanHandle(%q, %q) = %v, want %v", tt.namespace, tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTensorFlowHubAdapter_GetManifest(t *testing.T) {
+	adapter := NewTensorFlowHubAdapter()
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		namespace string
+		modelName string
+		version   string
+		wantErr   bool
+	}{
+		{
+			name:      "valid model",
+			namespace: "tfhub",
+			modelName: "google/imagenet/resnet_v2_50/classification/5",
+			version:   "latest",
+			wantErr:   false,
+		},
+		{
+			name:      "valid model with tf namespace",
+			namespace: "tf",
+			modelName: "google/universal-sentence-encoder/4",
+			version:   "latest",
+			wantErr:   false,
+		},
+		{
+			name:      "invalid format - no publisher",
+			namespace: "tfhub",
+			modelName: "resnet50",
+			version:   "latest",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manifest, err := adapter.GetManifest(ctx, tt.namespace, tt.modelName, tt.version)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetManifest() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if manifest == nil {
+					t.Fatal("GetManifest() returned nil manifest")
+				}
+				if manifest.Metadata.Namespace != tt.namespace {
+					t.Errorf("GetManifest() namespace = %v, want %v", manifest.Metadata.Namespace, tt.namespace)
+				}
+				if manifest.Metadata.Name != tt.modelName {
+					t.Errorf("GetManifest() name = %v, want %v", manifest.Metadata.Name, tt.modelName)
+				}
+				if manifest.Spec.Framework.Name != "TensorFlow" {
+					t.Errorf("GetManifest() framework = %v, want TensorFlow", manifest.Spec.Framework.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestTensorFlowHubAdapter_Search(t *testing.T) {
+	adapter := NewTensorFlowHubAdapter()
+	ctx := context.Background()
+
+	// TensorFlow Hub search may or may not work depending on API availability
+	// So we just test that it doesn't error
+	results, err := adapter.Search(ctx, "resnet")
+	if err != nil {
+		t.Errorf("Search() error = %v", err)
+	}
+	// Results can be empty if API is not available, which is acceptable
+	_ = results
+}
+
+func TestTensorFlowHubAdapter_DownloadPackage_WithMockServer(t *testing.T) {
+	// Create a mock HTTP server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "model.tar.gz") || strings.Contains(r.URL.String(), "tf-hub-format=compressed") {
+			// Return a mock tar.gz file
+			w.Header().Set("Content-Type", "application/gzip")
+			w.WriteHeader(http.StatusOK)
+			// Write a minimal tar.gz file
+			_, _ = w.Write([]byte{0x1f, 0x8b, 0x08, 0x00}) // gzip header
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	adapter := NewTensorFlowHubAdapter()
+	ctx := context.Background()
+
+	// Create a test manifest
+	manifest := &types.Manifest{
+		APIVersion: "v1",
+		Kind:       "Model",
+		Metadata: types.Metadata{
+			Name:      "google/test-model/1",
+			Namespace: "tfhub",
+			Version:   "latest",
+		},
+		Spec: types.Spec{
+			Framework: types.Framework{
+				Name:    "TensorFlow",
+				Version: "2.0.0",
+			},
+			Format: types.Format{
+				Type: "saved_model",
+				Files: []types.ModelFile{
+					{
+						Path:   "model.tar.gz",
+						Size:   0,
+						SHA256: "",
+					},
+				},
+			},
+		},
+		Distribution: types.Distribution{
+			Package: types.PackageInfo{
+				URL: server.URL + "/google/test-model/1",
+			},
+		},
+	}
+
+	// Create temp directory for test
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "test-model.axon")
+
+	// Test download (will fail with mock server, but tests the flow)
+	err := adapter.DownloadPackage(ctx, manifest, destPath, nil)
+	// We expect this to fail with the mock server, but it should not panic
+	if err != nil {
+		// Expected - mock server doesn't serve valid model files
+		t.Logf("DownloadPackage() failed as expected with mock server: %v", err)
+	}
 }

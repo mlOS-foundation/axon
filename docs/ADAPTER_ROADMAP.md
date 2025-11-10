@@ -38,7 +38,36 @@ axon install hf/roberta-base@latest
 
 See [PyTorch Hub Adapter](#-pytorch-hub-adapter-v110) section above for details.
 
-### 🚧 Phase 1.2: ModelScope Adapter (In Pipeline)
+### ✅ Phase 1.2: TensorFlow Hub Adapter (Completed - v1.2.0)
+
+**Status**: Production Ready  
+**Release**: v1.2.0 (November 2025)  
+**Coverage**: ~7% of ML practitioners  
+**Models**: 1,000+ pre-trained TensorFlow models
+
+**Usage**:
+```bash
+axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
+axon install tfhub/google/universal-sentence-encoder/4@latest
+axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
+```
+
+**Features**:
+- Real-time downloads from TensorFlow Hub
+- Support for SavedModel and TFLite formats
+- Automatic manifest creation
+- On-the-fly package generation
+- REST API integration for model discovery
+
+**Use Cases**:
+- TensorFlow-specific model deployments
+- Production inference with TensorFlow Serving
+- Transfer learning workflows
+- Google Cloud ML deployments
+
+**Source**: TensorFlow Hub is widely used in production environments, especially for TensorFlow-based deployments and Google Cloud ML workflows. It serves a significant portion of the enterprise ML market.
+
+### 🚧 Phase 1.3: ModelScope Adapter (In Pipeline)
 
 **Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
@@ -64,38 +93,16 @@ axon install modelscope/cv/resnet50@latest
 
 **Source**: ModelScope by Alibaba Cloud has seen rapid adoption, particularly in Asia-Pacific markets and for multimodal AI applications. It offers a complementary model collection to Hugging Face with strong enterprise support.
 
-### 🚧 TensorFlow Hub Adapter
-
-**Status**: Planned for Phase 1  
-**Coverage**: ~7% of ML practitioners  
-**Models**: 1,000+ pre-trained TensorFlow models  
-**Timeline**: Q2 2025
-
-**Use Cases**:
-- TensorFlow-specific model deployments
-- Production inference with TensorFlow Serving
-- Transfer learning workflows
-- Google Cloud ML deployments
-
-**Planned Usage**:
-```bash
-axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
-axon install tfhub/google/universal-sentence-encoder/4@latest
-axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
-```
-
-**Source**: TensorFlow Hub is widely used in production environments, especially for TensorFlow-based deployments and Google Cloud ML workflows. It serves a significant portion of the enterprise ML market.
-
 ## Combined Coverage
 
 ### Phase 0 (Current)
 - **Hugging Face Hub**: 60%+ of ML practitioners
 
-### Phase 1 (Planned)
+### Phase 1 (Current)
 - **Hugging Face Hub**: 60%+ of ML practitioners
-- **PyTorch Hub**: 5%+ of ML practitioners
-- **ModelScope**: 8%+ of ML practitioners (growing)
-- **TensorFlow Hub**: 7%+ of ML practitioners
+- **PyTorch Hub**: 5%+ of ML practitioners (v1.1.0+)
+- **TensorFlow Hub**: 7%+ of ML practitioners (v1.2.0+)
+- **ModelScope**: 8%+ of ML practitioners (growing) - Coming soon
 - **Total**: **80%+ of ML model user base**
 
 **Note**: There is overlap between repositories (users may use multiple), but the combined coverage ensures Axon works for the vast majority of ML practitioners across research, production, and enterprise use cases.

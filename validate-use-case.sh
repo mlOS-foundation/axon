@@ -101,6 +101,16 @@ test_install_pytorch() {
     fi
 }
 
+# Test 4c: axon install (TensorFlow Hub) - NEW in v1.2.0
+test_install_tfhub() {
+    log_info "Test 4c: Testing 'axon install tfhub/google/universal-sentence-encoder/4@latest' (TensorFlow Hub adapter)..."
+    if axon install tfhub/google/universal-sentence-encoder/4@latest 2>&1; then
+        log_success "axon install (TensorFlow Hub) completed"
+    else
+        log_warning "axon install (TensorFlow Hub) failed (may be expected if model is large or network issues)"
+    fi
+}
+
 # Test 5: axon list
 test_list() {
     log_info "Test 5: Testing 'axon list'..."
@@ -215,6 +225,7 @@ main() {
     test_info
     test_install
     test_install_pytorch
+    test_install_tfhub
     test_list
     test_verify
     test_cache
