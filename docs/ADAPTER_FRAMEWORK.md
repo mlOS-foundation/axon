@@ -2,7 +2,7 @@
 
 ## Overview
 
-Axon's adapter framework is a **pluggable, extensible architecture** built on GoF design patterns that enables support for any model repository. The framework provides a clean separation between core interfaces and adapter implementations, making it easy to add support for new repositories.
+Axon's adapter framework is a **pluggable, extensible architecture** that enables support for any model repository. The framework provides a clean separation between core interfaces and adapter implementations, making it easy to add support for new repositories without modifying core code.
 
 ## Framework Architecture
 
@@ -32,13 +32,11 @@ internal/registry/
     └── modelscope.go  # Complete ModelScope implementation
 ```
 
-## Design Patterns
+## Framework Components
 
-### 1. Adapter Pattern
+### RepositoryAdapter Interface
 
-**Purpose**: Allow incompatible interfaces to work together
-
-**Implementation**: The `RepositoryAdapter` interface provides a unified way to access different model repositories:
+The `RepositoryAdapter` interface provides a unified way to access different model repositories:
 
 ```go
 type RepositoryAdapter interface {
@@ -55,11 +53,9 @@ type RepositoryAdapter interface {
 - Easy to add new adapters
 - Type-safe implementations
 
-### 2. Strategy Pattern
+### Adapter Selection
 
-**Purpose**: Define a family of algorithms and make them interchangeable
-
-**Implementation**: Each adapter implements its own strategy:
+Each adapter implements its own logic for determining which models it can handle:
 
 - **HuggingFace**: Can handle any model (fallback strategy)
 - **PyTorch Hub**: Handles `pytorch/` and `torch/` namespaces
@@ -68,61 +64,24 @@ type RepositoryAdapter interface {
 
 **Example**:
 ```go
-// Hugging Face strategy - accepts any model
+// Hugging Face - accepts any model (fallback)
 func (h *HuggingFaceAdapter) CanHandle(namespace, name string) bool {
-    return true // Fallback adapter
+    return true
 }
 
-// PyTorch Hub strategy - specific namespace
+// PyTorch Hub - specific namespace
 func (p *PyTorchHubAdapter) CanHandle(namespace, name string) bool {
     return namespace == "pytorch" || namespace == "torch"
 }
 ```
 
-### 3. Factory Pattern
+### AdapterRegistry
 
-**Purpose**: Create objects without specifying the exact class
-
-**Implementation**: `AdapterFactory` creates adapters from configuration:
-
-```go
-type AdapterFactory interface {
-    Create(config AdapterConfig) (RepositoryAdapter, error)
-    Name() string
-}
-```
-
-**Usage**:
-```go
-factory := examples.NewModelScopeFactory()
-adapter, err := factory.Create(config)
-```
-
-### 4. Builder Pattern
-
-**Purpose**: Construct complex objects step by step
-
-**Implementation**: `AdapterBuilder` provides fluent configuration:
-
-```go
-config := core.NewAdapterBuilder().
-    WithBaseURL("https://api.example.com").
-    WithToken("my-token").
-    WithTimeout(300).
-    WithOption("custom", "value").
-    Build()
-```
-
-### 5. Registry Pattern
-
-**Purpose**: Centralize object creation and management
-
-**Implementation**: `AdapterRegistry` manages all adapters:
+The `AdapterRegistry` manages all adapters and finds the right one for each model:
 
 ```go
 registry := core.NewAdapterRegistry()
-registry.Register(adapter1)
-registry.Register(adapter2)
+builtin.RegisterDefaultAdapters(registry, ...)
 adapter, _ := registry.FindAdapter("namespace", "model")
 ```
 
