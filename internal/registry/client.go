@@ -1,3 +1,4 @@
+// Package registry provides HTTP client for Axon-compatible registries.
 package registry
 
 import (
@@ -19,6 +20,11 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	mirrors    []string
+}
+
+// BaseURL returns the base URL of the client
+func (c *Client) BaseURL() string {
+	return c.baseURL
 }
 
 // NewClient creates a new registry client

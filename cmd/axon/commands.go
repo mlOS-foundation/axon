@@ -11,7 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mlOS-foundation/axon/internal/cache"
-	"github.com/mlOS-foundation/axon/internal/registry"
+	"github.com/mlOS-foundation/axon/internal/registry/builtin"
+	"github.com/mlOS-foundation/axon/internal/registry/core"
+	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
 // copyFile copies a file from src to dst
@@ -100,8 +102,23 @@ func searchCmd() *cobra.Command {
 			query := args[0]
 			fmt.Printf("Searching for models matching '%s'...\n", query)
 
-			client := registry.NewClient(cfg.Registry.URL, cfg.Registry.Mirrors)
-			results, err := client.Search(cmd.Context(), query)
+			// Use builtin local adapter for search
+			adapterRegistry := core.NewAdapterRegistry()
+			builtin.RegisterDefaultAdapters(adapterRegistry, cfg.Registry.URL, cfg.Registry.Mirrors, cfg.Registry.HuggingFaceToken, cfg.Registry.EnableHuggingFace)
+
+			// Try to find an adapter that supports search
+			// For now, use local registry if available
+			var results []types.SearchResult
+			var err error
+			if cfg.Registry.URL != "" {
+				localAdapter := builtin.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
+				results, err = localAdapter.Search(cmd.Context(), query)
+			} else {
+				fmt.Printf("⚠ Registry search not yet available (registry may not be configured)\n")
+				fmt.Printf("   Query: %s\n", query)
+				return nil
+			}
+
 			if err != nil {
 				// If registry is not available, show a helpful message
 				fmt.Printf("⚠ Registry search not yet available (registry may not be configured)\n")
@@ -149,35 +166,10 @@ func infoCmd() *cobra.Command {
 			fmt.Printf("Fetching info for %s/%s@%s...\n", namespace, name, version)
 
 			// Try to find adapter for this model
-			adapterRegistry := registry.NewAdapterRegistry()
+			adapterRegistry := core.NewAdapterRegistry()
 
-			// Register adapters in priority order (same as install command)
-			// 1. Local registry (if configured)
-			if cfg.Registry.URL != "" {
-				localAdapter := registry.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
-				adapterRegistry.Register(localAdapter)
-			}
-
-			// 2. PyTorch Hub (if namespace matches)
-			pytorchAdapter := registry.NewPyTorchHubAdapter()
-			adapterRegistry.Register(pytorchAdapter)
-
-			// 3. TensorFlow Hub (if namespace matches)
-			tfhubAdapter := registry.NewTensorFlowHubAdapter()
-			adapterRegistry.Register(tfhubAdapter)
-
-			// 4. Hugging Face (fallback - can handle any model)
-			if cfg.Registry.EnableHuggingFace {
-				var hfAdapter *registry.HuggingFaceAdapter
-				if cfg.Registry.HuggingFaceToken != "" {
-					// Use token if provided (for gated/private models)
-					hfAdapter = registry.NewHuggingFaceAdapterWithToken(cfg.Registry.HuggingFaceToken)
-				} else {
-					// No token - works for public models
-					hfAdapter = registry.NewHuggingFaceAdapter()
-				}
-				adapterRegistry.Register(hfAdapter)
-			}
+			// Register adapters using builtin registration
+			builtin.RegisterDefaultAdapters(adapterRegistry, cfg.Registry.URL, cfg.Registry.Mirrors, cfg.Registry.HuggingFaceToken, cfg.Registry.EnableHuggingFace)
 
 			// Find the best adapter
 			adapter, err := adapterRegistry.FindAdapter(namespace, name)
@@ -281,35 +273,10 @@ func installCmd() *cobra.Command {
 			}
 
 			// Try to find adapter for this model
-			adapterRegistry := registry.NewAdapterRegistry()
+			adapterRegistry := core.NewAdapterRegistry()
 
-			// Register adapters in priority order
-			// 1. Local registry (if configured)
-			if cfg.Registry.URL != "" {
-				localAdapter := registry.NewLocalRegistryAdapter(cfg.Registry.URL, cfg.Registry.Mirrors)
-				adapterRegistry.Register(localAdapter)
-			}
-
-			// 2. PyTorch Hub (if namespace matches)
-			pytorchAdapter := registry.NewPyTorchHubAdapter()
-			adapterRegistry.Register(pytorchAdapter)
-
-			// 3. TensorFlow Hub (if namespace matches)
-			tfhubAdapter := registry.NewTensorFlowHubAdapter()
-			adapterRegistry.Register(tfhubAdapter)
-
-			// 4. Hugging Face (fallback - can handle any model)
-			if cfg.Registry.EnableHuggingFace {
-				var hfAdapter *registry.HuggingFaceAdapter
-				if cfg.Registry.HuggingFaceToken != "" {
-					// Use token if provided (for gated/private models)
-					hfAdapter = registry.NewHuggingFaceAdapterWithToken(cfg.Registry.HuggingFaceToken)
-				} else {
-					// No token - works for public models
-					hfAdapter = registry.NewHuggingFaceAdapter()
-				}
-				adapterRegistry.Register(hfAdapter)
-			}
+			// Register adapters using builtin registration
+			builtin.RegisterDefaultAdapters(adapterRegistry, cfg.Registry.URL, cfg.Registry.Mirrors, cfg.Registry.HuggingFaceToken, cfg.Registry.EnableHuggingFace)
 
 			// Find the best adapter
 			adapter, err := adapterRegistry.FindAdapter(namespace, name)
