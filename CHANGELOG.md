@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
 
+## [1.1.2] - 2024-11-10
+
+### Added
+- **CHANGELOG.md**: Comprehensive changelog following [Keep a Changelog](https://keepachangelog.com/) format with all versions documented (#12)
+- **Release Cadence Documentation**: Added `docs/RELEASE_CADENCE.md` with detailed release process, checklists, and best practices (#12)
+- **Reusable Release Context**: Added `docs/RELEASE_CONTEXT.md` for reusable release context across MLOS Foundation repositories (#12)
+
+### Changed
+- **Release Workflow**: Enhanced `.github/workflows/release.yml` to automatically extract release notes from CHANGELOG.md and include them in GitHub Releases (#12)
+- **Release Process**: Established standardized release cadence and process documentation (#12)
+
 ## [1.1.1] - 2024-11-10
 
 ### Fixed
