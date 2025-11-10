@@ -197,11 +197,11 @@ func infoCmd() *cobra.Command {
 			fmt.Printf("\n📦 Model Information\n")
 			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 			fmt.Printf("Name:        %s/%s@%s\n", manifest.Metadata.Namespace, manifest.Metadata.Name, manifest.Metadata.Version)
-			
+
 			if manifest.Metadata.Description != "" {
 				fmt.Printf("Description: %s\n", manifest.Metadata.Description)
 			}
-			
+
 			if manifest.Spec.Framework.Name != "" {
 				fmt.Printf("Framework:   %s", manifest.Spec.Framework.Name)
 				if manifest.Spec.Framework.Version != "" {
@@ -209,11 +209,11 @@ func infoCmd() *cobra.Command {
 				}
 				fmt.Println()
 			}
-			
+
 			if manifest.Metadata.License != "" {
 				fmt.Printf("License:     %s\n", manifest.Metadata.License)
 			}
-			
+
 			if len(manifest.Spec.Format.Files) > 0 {
 				fmt.Printf("\nFiles:\n")
 				totalSize := int64(0)
