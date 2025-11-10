@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
 
+## [1.2.2] - 2024-11-10
+
+### Fixed
+- **Generic model validation**: Added `ModelValidator` helper for consistent model existence validation across all adapters (#15)
+  - TensorFlow Hub adapter now correctly rejects non-existent models
+  - Hugging Face adapter validates model existence before creating manifest
+  - PyTorch Hub adapter validates both repository and model in hubconf.py
+  - Fixes issue where `axon info` showed information for non-existent models
+  - Enhanced validation to detect HTML error/search pages for better accuracy
+
+### Added
+- **Auto-install CI tools**: Added `make install-tools` target and automatic tool installation in validation scripts (#15)
+  - Automatically installs `golangci-lint` v1.64.8 (matching CI) if missing
+  - Automatically installs `goimports` if missing
+  - Ensures `GOPATH/bin` is in PATH for tool discovery
+  - Updated `validate-pr.sh` to install tools before running checks
+  - Updated `lint` and `fmt` Makefile targets to depend on `install-tools`
+
+### Changed
+- **Validation script**: Enhanced `validate-pr.sh` to automatically install missing CI tools
+- **Makefile**: Added tool version variables and `install-tools` target
+- **Documentation**: Updated `CONTRIBUTING.md` with auto-install tool instructions
+
 ## [1.2.1] - 2024-11-10
 
 ### Fixed
