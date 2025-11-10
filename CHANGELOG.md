@@ -13,6 +13,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
 
+## [1.3.0] - 2024-11-10
+
+### Added
+- **Adapter Framework Refactoring**: Complete refactoring of adapter architecture using GoF design patterns (#16)
+  - **Core Framework** (`internal/registry/core/`): New package with interfaces and utilities
+    - `RepositoryAdapter` interface (Adapter Pattern) - Unified interface for all repositories
+    - `AdapterRegistry` (Registry Pattern) - Centralized adapter management
+    - `AdapterFactory` (Factory Pattern) - Dynamic adapter creation
+    - `AdapterBuilder` (Builder Pattern) - Fluent configuration
+    - `ModelValidator` - Generic model existence validation helper
+    - `HTTPClient` - HTTP requests with authentication support
+    - `PackageBuilder` - Create .axon packages with progress tracking
+    - `DownloadFile` - Download files with progress callbacks
+    - `ComputeChecksum` - SHA256 checksum computation
+  - **Builtin Adapters** (`internal/registry/builtin/`): Migrated all adapters to new framework
+    - HuggingFace adapter using core helpers
+    - PyTorch Hub adapter using core helpers
+    - TensorFlow Hub adapter using core helpers
+    - Local Registry adapter
+    - Centralized registration via `RegisterDefaultAdapters()`
+  - **Example Adapter** (`internal/registry/examples/`): ModelScope adapter as reference implementation
+    - Complete implementation demonstrating framework usage
+    - Comprehensive unit tests
+    - Shows best practices for adapter development
+  - **Comprehensive Documentation**:
+    - `docs/ADAPTER_FRAMEWORK.md` - Complete framework overview with design patterns
+    - `docs/ADAPTER_DEVELOPMENT.md` - Step-by-step guide for creating new adapters
+    - `docs/ADAPTER_FRAMEWORK_REFACTOR.md` - Refactoring summary and benefits
+    - `docs/ADAPTER_MIGRATION_STATUS.md` - Migration tracking
+    - `internal/registry/README.md` - Package overview
+
+### Changed
+- **CLI Commands**: Updated to use new `core.AdapterRegistry` and `builtin.RegisterDefaultAdapters()`
+  - `axon install` now uses new framework
+  - `axon info` now uses new framework
+  - `axon search` now uses new framework
+- **Adapter Structure**: All adapters now use core helper utilities for common operations
+  - Reduced code duplication
+  - Consistent error handling
+  - Standardized validation
+- **Code Organization**: Removed old `internal/registry/adapter.go` (1830 lines) in favor of modular structure
+
+### Benefits
+- **Extensibility**: Easier to add new adapters with clear patterns and reusable utilities
+- **Maintainability**: Clean separation between core interfaces and implementations
+- **Testability**: Isolated components are easier to test
+- **Type Safety**: Strong interfaces prevent errors
+- **Documentation**: Comprehensive guides for adapter development
+
+### Migration
+- **No breaking changes**: All existing functionality preserved
+- **Backward compatible**: Existing adapters work identically
+- **Internal refactoring**: Changes are transparent to users
+
 ## [1.2.2] - 2024-11-10
 
 ### Fixed
