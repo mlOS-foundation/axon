@@ -21,6 +21,11 @@ type Client struct {
 	mirrors    []string
 }
 
+// BaseURL returns the base URL of the client
+func (c *Client) BaseURL() string {
+	return c.baseURL
+}
+
 // NewClient creates a new registry client
 func NewClient(baseURL string, mirrors []string) *Client {
 	return &Client{
