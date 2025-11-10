@@ -48,17 +48,47 @@ else
 fi
 echo ""
 
-# 4. Lint check
-echo -e "${BLUE}4. Running golangci-lint...${NC}"
+# 4. Install CI tools if needed
+echo -e "${BLUE}4. Ensuring CI tools are installed...${NC}"
+
+# Ensure GOPATH/bin is in PATH
+export PATH="$(go env GOPATH)/bin:${PATH}"
+
+# Install golangci-lint if not available
 if ! command -v golangci-lint &> /dev/null; then
     echo -e "${YELLOW}⚠️  golangci-lint not found, installing v1.64.8...${NC}"
-    go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
-    if [ $? -ne 0 ]; then
+    if go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8; then
+        echo -e "${GREEN}✅ golangci-lint installed${NC}"
+        # Verify it's now in PATH
+        export PATH="$(go env GOPATH)/bin:${PATH}"
+        if ! command -v golangci-lint &> /dev/null; then
+            echo -e "${YELLOW}⚠️  golangci-lint installed but not in PATH. Add $(go env GOPATH)/bin to your PATH${NC}"
+            echo -e "${YELLOW}   Current PATH: ${PATH}${NC}"
+        fi
+    else
         echo -e "${RED}❌ Failed to install golangci-lint${NC}"
         FAILED=1
     fi
+else
+    echo -e "${GREEN}✅ golangci-lint already installed${NC}"
 fi
 
+# Install goimports if not available
+if ! command -v goimports &> /dev/null; then
+    echo -e "${YELLOW}⚠️  goimports not found, installing...${NC}"
+    if go install golang.org/x/tools/cmd/goimports@latest; then
+        echo -e "${GREEN}✅ goimports installed${NC}"
+        export PATH="$(go env GOPATH)/bin:${PATH}"
+    else
+        echo -e "${YELLOW}⚠️  Failed to install goimports (non-critical)${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ goimports already installed${NC}"
+fi
+echo ""
+
+# 5. Lint check
+echo -e "${BLUE}5. Running golangci-lint...${NC}"
 if command -v golangci-lint &> /dev/null; then
     # Use same config as CI (.golangci.yml)
     if ! golangci-lint run --timeout=5m; then
@@ -69,13 +99,13 @@ if command -v golangci-lint &> /dev/null; then
         echo -e "${GREEN}✅ golangci-lint: OK${NC}"
     fi
 else
-    echo -e "${RED}❌ golangci-lint still not available after installation attempt${NC}"
+    echo -e "${RED}❌ golangci-lint not available. Run 'make install-tools' to install it.${NC}"
     FAILED=1
 fi
 echo ""
 
-# 5. Run tests
-echo -e "${BLUE}5. Running tests...${NC}"
+# 6. Run tests
+echo -e "${BLUE}6. Running tests...${NC}"
 if ! go test -v -coverprofile=coverage.out ./...; then
     echo -e "${RED}❌ Tests failed${NC}"
     FAILED=1
@@ -90,8 +120,8 @@ else
 fi
 echo ""
 
-# 6. Build check
-echo -e "${BLUE}6. Building binary...${NC}"
+# 7. Build check
+echo -e "${BLUE}7. Building binary...${NC}"
 if ! go build -o /tmp/axon-test ./cmd/axon; then
     echo -e "${RED}❌ Build failed${NC}"
     FAILED=1

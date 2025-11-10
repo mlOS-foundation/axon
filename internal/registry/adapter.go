@@ -20,6 +20,118 @@ import (
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
+// ModelValidator provides generic model existence validation for adapters
+type ModelValidator struct {
+	httpClient *http.Client
+}
+
+// NewModelValidator creates a new model validator
+func NewModelValidator() *ModelValidator {
+	return &ModelValidator{
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// ValidateModelExists checks if a model exists at the given URL
+// Returns true if model exists, false if not found, error for validation failures
+// This is a generic helper that can be used by all adapters
+// Uses GET request with redirect following to handle repositories that don't support HEAD
+func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL string) (bool, error) {
+	// Use GET request (some repositories like TensorFlow Hub don't support HEAD properly)
+	// Limit response size to avoid downloading large files
+	req, err := http.NewRequestWithContext(ctx, "GET", modelURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set Range header to only request first few bytes (validation only)
+	req.Header.Set("Range", "bytes=0-1023")
+
+	// Create client that follows redirects
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Allow up to 10 redirects
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Network error - can't validate, return error so caller can decide
+		return false, fmt.Errorf("network error during validation: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	// 404 means definitely doesn't exist
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	// 200-299 means got a response (including 206 Partial Content from Range request)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		// For HTML responses, check if it's an error/search page
+		contentType := resp.Header.Get("Content-Type")
+		if strings.Contains(contentType, "text/html") {
+			// Read a small portion to check for error indicators
+			bodyBytes := make([]byte, 2048) // Read first 2KB
+			n, _ := resp.Body.Read(bodyBytes)
+			bodyStr := strings.ToLower(string(bodyBytes[:n]))
+
+			// Check for common error/search page indicators
+			// TensorFlow Hub redirects non-existent models to search page
+			errorIndicators := []string{
+				"<title>find pre-trained models",
+				"<title>search",
+				"model not found",
+				"does not exist",
+				"404",
+				"page not found",
+			}
+
+			// Check if it looks like a search/error page
+			for _, indicator := range errorIndicators {
+				if strings.Contains(bodyStr, indicator) {
+					// If it's a search page title, likely model doesn't exist
+					if strings.Contains(bodyStr, "<title>find pre-trained models") ||
+						strings.Contains(bodyStr, "<title>search") {
+						return false, nil
+					}
+				}
+			}
+
+			// Check if URL was redirected to search/browse page (but not model page)
+			finalURL := resp.Request.URL.String()
+			// TensorFlow Hub redirects to Kaggle, but valid models go to model pages
+			// Invalid models go to search/browse pages without publisher/model path
+			if strings.Contains(finalURL, "/models") && !strings.Contains(finalURL, "/google/") &&
+				!strings.Contains(finalURL, "/tensorflow/") && !strings.Contains(finalURL, "/publisher/") {
+				// Redirected to general models page - model doesn't exist
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+
+	// 416 Range Not Satisfiable might mean file exists but is smaller than requested range
+	// This is actually a good sign - the file exists
+	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+		return true, nil
+	}
+
+	// Other status codes (401, 403, 500, etc.) - assume might exist
+	// Could be auth required, server error, etc.
+	// Return true to allow adapter to handle it
+	return true, nil
+}
+
 // RepositoryAdapter defines the interface for different model repositories
 // This allows Axon to support multiple sources: Hugging Face, local registry, custom registries, etc.
 type RepositoryAdapter interface {
@@ -41,9 +153,10 @@ type RepositoryAdapter interface {
 
 // HuggingFaceAdapter implements RepositoryAdapter for Hugging Face Hub
 type HuggingFaceAdapter struct {
-	httpClient *http.Client
-	baseURL    string
-	token      string // Optional HF token for gated/private models
+	httpClient     *http.Client
+	baseURL        string
+	token          string // Optional HF token for gated/private models
+	modelValidator *ModelValidator
 }
 
 // NewHuggingFaceAdapter creates a new Hugging Face adapter
@@ -52,8 +165,9 @@ func NewHuggingFaceAdapter() *HuggingFaceAdapter {
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute, // Longer timeout for large downloads
 		},
-		baseURL: "https://huggingface.co",
-		token:   "", // No token by default - works for public models
+		baseURL:        "https://huggingface.co",
+		token:          "", // No token by default - works for public models
+		modelValidator: NewModelValidator(),
 	}
 }
 
@@ -63,8 +177,9 @@ func NewHuggingFaceAdapterWithToken(token string) *HuggingFaceAdapter {
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute,
 		},
-		baseURL: "https://huggingface.co",
-		token:   token,
+		baseURL:        "https://huggingface.co",
+		token:          token,
+		modelValidator: NewModelValidator(),
 	}
 }
 
@@ -122,13 +237,20 @@ func (h *HuggingFaceAdapter) Search(ctx context.Context, query string) ([]types.
 
 // GetManifest retrieves the manifest for the specified model.
 func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, version string) (*types.Manifest, error) {
-	// For Hugging Face, we generate a manifest on-the-fly
-	// In production, this would fetch model metadata from HF API
-
-	// Construct HF model ID
+	// Construct HF model ID and URL
 	hfModelID := name
 	if namespace != "" && namespace != "hf" {
 		hfModelID = fmt.Sprintf("%s/%s", namespace, name)
+	}
+
+	// Validate model exists on Hugging Face
+	modelURL := fmt.Sprintf("%s/%s", h.baseURL, hfModelID)
+	valid, err := h.modelValidator.ValidateModelExists(ctx, modelURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate model existence: %w", err)
+	}
+	if !valid {
+		return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
 	}
 
 	// Create manifest with HF download URLs
@@ -522,9 +644,10 @@ func (ar *AdapterRegistry) GetAllAdapters() []RepositoryAdapter {
 // PyTorch Hub models are hosted on GitHub repositories (e.g., pytorch/vision, pytorch/text)
 // Models are defined via hubconf.py files and can be loaded via torch.hub.load()
 type PyTorchHubAdapter struct {
-	httpClient  *http.Client
-	baseURL     string // GitHub API base URL
-	githubToken string // Optional GitHub token for rate limit increases
+	httpClient     *http.Client
+	baseURL        string // GitHub API base URL
+	githubToken    string // Optional GitHub token for rate limit increases
+	modelValidator *ModelValidator
 }
 
 // NewPyTorchHubAdapter creates a new PyTorch Hub adapter
@@ -533,8 +656,9 @@ func NewPyTorchHubAdapter() *PyTorchHubAdapter {
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute,
 		},
-		baseURL:     "https://api.github.com",
-		githubToken: "", // No token by default
+		baseURL:        "https://api.github.com",
+		githubToken:    "", // No token by default
+		modelValidator: NewModelValidator(),
 	}
 }
 
@@ -544,8 +668,9 @@ func NewPyTorchHubAdapterWithToken(token string) *PyTorchHubAdapter {
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute,
 		},
-		baseURL:     "https://api.github.com",
-		githubToken: token,
+		baseURL:        "https://api.github.com",
+		githubToken:    token,
+		modelValidator: NewModelValidator(),
 	}
 }
 
@@ -604,6 +729,47 @@ func (p *PyTorchHubAdapter) GetManifest(ctx context.Context, namespace, name, ve
 
 	// Construct GitHub repo path (PyTorch Hub repos are under pytorch/ organization)
 	githubRepo := fmt.Sprintf("pytorch/%s", repo)
+
+	// Validate GitHub repository exists
+	repoURL := fmt.Sprintf("https://github.com/%s", githubRepo)
+	valid, err := p.modelValidator.ValidateModelExists(ctx, repoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate repository existence: %w", err)
+	}
+	if !valid {
+		return nil, fmt.Errorf("repository not found: %s (model: %s/%s@%s)", githubRepo, namespace, name, version)
+	}
+
+	// Validate that the specific model exists in hubconf.py
+	hubconfURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/main/hubconf.py", githubRepo)
+	hubconfReq, err := http.NewRequestWithContext(ctx, "GET", hubconfURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create hubconf request: %w", err)
+	}
+	if p.githubToken != "" {
+		hubconfReq.Header.Set("Authorization", fmt.Sprintf("token %s", p.githubToken))
+	}
+
+	hubconfResp, err := p.httpClient.Do(hubconfReq)
+	if err != nil {
+		// If we can't fetch hubconf.py, assume model might exist
+		// (could be network issue, not necessarily model doesn't exist)
+	} else {
+		defer func() {
+			_ = hubconfResp.Body.Close()
+		}()
+
+		if hubconfResp.StatusCode == http.StatusOK {
+			hubconfContent, err := io.ReadAll(hubconfResp.Body)
+			if err == nil {
+				// Check if model exists in hubconf.py
+				modelURLs := p.parseHubconf(hubconfContent, modelName)
+				if len(modelURLs) == 0 {
+					return nil, fmt.Errorf("model not found in hubconf.py: %s (repository: %s)", modelName, githubRepo)
+				}
+			}
+		}
+	}
 
 	// Create manifest
 	manifest := &types.Manifest{
@@ -1153,8 +1319,9 @@ func (p *PyTorchHubAdapter) updateManifestWithChecksum(manifest *types.Manifest,
 // TensorFlow Hub models are hosted at https://tfhub.dev
 // Models are organized by publisher (e.g., google, tensorflow) and can be SavedModel or TFLite format
 type TensorFlowHubAdapter struct {
-	httpClient *http.Client
-	baseURL    string // TensorFlow Hub base URL
+	httpClient     *http.Client
+	baseURL        string // TensorFlow Hub base URL
+	modelValidator *ModelValidator
 }
 
 // NewTensorFlowHubAdapter creates a new TensorFlow Hub adapter
@@ -1163,7 +1330,8 @@ func NewTensorFlowHubAdapter() *TensorFlowHubAdapter {
 		httpClient: &http.Client{
 			Timeout: 5 * time.Minute,
 		},
-		baseURL: "https://tfhub.dev",
+		baseURL:        "https://tfhub.dev",
+		modelValidator: NewModelValidator(),
 	}
 }
 
@@ -1260,12 +1428,48 @@ func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name,
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		// If metadata fetch fails, create a basic manifest
+		// Network error - validate model exists before creating manifest
+		valid, err := t.modelValidator.ValidateModelExists(ctx, modelURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate model existence: %w", err)
+		}
+		if !valid {
+			return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
+		}
+		// Model exists but network error - create basic manifest
 		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+
+	// Check if model exists - 404 means model not found
+	if resp.StatusCode == http.StatusNotFound {
+		// Metadata API returned 404 - validate model page exists
+		valid, err := t.modelValidator.ValidateModelExists(ctx, modelURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate model existence: %w", err)
+		}
+		if !valid {
+			return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
+		}
+		// Model page exists but metadata API unavailable - create basic manifest
+		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+	}
+
+	// Other non-200 status codes - validate model exists
+	if resp.StatusCode != http.StatusOK {
+		// Validate model exists by checking the base model URL
+		valid, err := t.modelValidator.ValidateModelExists(ctx, modelURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate model existence: %w", err)
+		}
+		if !valid {
+			return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
+		}
+		// Model exists but metadata unavailable - create basic manifest
+		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+	}
 
 	var metadata struct {
 		Name        string `json:"name"`
@@ -1284,14 +1488,17 @@ func (t *TensorFlowHubAdapter) GetManifest(ctx context.Context, namespace, name,
 		} `json:"outputs"`
 	}
 
-	// If metadata fetch succeeds, use it; otherwise use defaults
-	if resp.StatusCode == http.StatusOK {
-		if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
-			// If decode fails, use defaults
-			return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
+	// Decode metadata
+	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
+		// If decode fails, validate model exists before creating basic manifest
+		valid, err := t.modelValidator.ValidateModelExists(ctx, modelURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate model existence: %w", err)
 		}
-	} else {
-		// Use defaults if metadata fetch fails
+		if !valid {
+			return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
+		}
+		// Model exists but metadata decode failed - create basic manifest
 		return t.createBasicManifest(namespace, name, version, publisher, modelPath, modelURL), nil
 	}
 
