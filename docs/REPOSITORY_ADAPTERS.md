@@ -98,14 +98,49 @@ axon install pytorch/vision/vgg16@latest
 **How it works**:
 1. Axon parses the model specification (e.g., `pytorch/vision/resnet50`)
 2. Fetches model weights from PyTorch's download URLs
-3. Creates `.axon` package on-the-fly
-4. Computes SHA256 checksum
-5. Caches package locally
+3. Downloads from GitHub releases or direct URLs
+4. Creates `.axon` package with model files
+5. Computes SHA256 checksum
+6. Caches package locally
+
+### 4. TensorFlow Hub Adapter (v1.2.0+)
+
+**Purpose**: Download models directly from TensorFlow Hub in real-time
+
+**Usage**:
+```bash
+# Install TensorFlow Hub models
+axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
+axon install tfhub/google/universal-sentence-encoder/4@latest
+axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
+```
+
+**Features**:
+- ✅ Real-time downloads from TensorFlow Hub (tfhub.dev)
+- ✅ Automatic package creation (`.axon` format)
+- ✅ Support for SavedModel and TFLite formats
+- ✅ REST API integration for model discovery
+- ✅ Automatic checksum computation
+- ✅ Progress tracking
+- ✅ Metadata extraction from TensorFlow Hub API
+
+**How it works**:
+1. Axon parses the model specification (e.g., `tfhub/google/imagenet/resnet_v2_50/classification/5`)
+2. Fetches model metadata from TensorFlow Hub REST API (optional)
+3. Downloads model as compressed tar.gz file
+4. Creates `.axon` package with model files
+5. Computes SHA256 checksum
+6. Caches package locally
+
+**Model Format**:
+- Format: `tfhub/{publisher}/{model_path}@version`
+- Example: `tfhub/google/imagenet/resnet_v2_50/classification/5@latest`
+- Supports both `tfhub/` and `tf/` namespaces
 
 **Supported Models**:
-- PyTorch Vision models (resnet50, alexnet, vgg16, etc.)
-- Models from `pytorch/vision`, `pytorch/text`, `pytorch/audio` repositories
-- Any PyTorch Hub model with accessible weight URLs
+- TensorFlow SavedModel format models
+- TFLite models
+- Models from any TensorFlow Hub publisher (google, tensorflow, etc.)
 
 ## Adapter Priority
 
@@ -113,7 +148,8 @@ Adapters are checked in **registration order**:
 
 1. **Local Registry** (if configured) - checked first
 2. **PyTorch Hub** (v1.1.0+) - handles `pytorch/` and `torch/` namespaces
-3. **Hugging Face** - fallback for any model
+3. **TensorFlow Hub** (v1.2.0+) - handles `tfhub/` and `tf/` namespaces
+4. **Hugging Face** - fallback for any model
 
 The first adapter that `CanHandle()` returns `true` is used.
 
@@ -232,51 +268,51 @@ adapterRegistry.Register(&CustomAdapter{})
 
 **Note**: ONNX Model Zoo has been deprecated (July 2025) and models have transitioned to Hugging Face. See [ONNX deprecation notice](https://onnx.ai/models/).
 
-### PyTorch Hub Adapter (Phase 1)
+### PyTorch Hub Adapter (Phase 1.1 - v1.1.0+)
 
-**Status**: In Pipeline  
+**Status**: ✅ Available Now  
 **Coverage**: ~5% of ML model user base  
 **Use Case**: PyTorch pre-trained models for research and experimentation
 
 ```bash
-# Coming soon in Phase 1
-axon install pytorch/resnet50@latest
-axon install pytorch/alexnet@latest
-axon install pytorch/vgg16@latest
+# Available now in v1.1.0+
+axon install pytorch/vision/resnet50@latest
+axon install pytorch/vision/alexnet@latest
+axon install pytorch/vision/vgg16@latest
 ```
 
-### ModelScope Adapter (Phase 1)
+### TensorFlow Hub Adapter (Phase 1.2 - v1.2.0+)
 
-**Status**: In Pipeline  
-**Coverage**: ~8% of ML model user base (growing rapidly)  
-**Use Case**: Multimodal AI models, Chinese language models, enterprise solutions
-
-```bash
-# Coming soon in Phase 1
-axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
-axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
-axon install modelscope/cv/resnet50@latest
-```
-
-### TensorFlow Hub Adapter (Phase 1)
-
-**Status**: In Pipeline  
+**Status**: ✅ Available Now  
 **Coverage**: ~7% of ML model user base  
 **Use Case**: TensorFlow models for production deployments and Google Cloud ML
 
 ```bash
-# Coming soon in Phase 1
+# Available now in v1.2.0+
 axon install tfhub/google/imagenet/resnet_v2_50/classification/5@latest
 axon install tfhub/google/universal-sentence-encoder/4@latest
 axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
 ```
 
+### ModelScope Adapter (Phase 1.3 - Coming Soon)
+
+**Status**: 🚧 In Pipeline  
+**Coverage**: ~8% of ML model user base (growing rapidly)  
+**Use Case**: Multimodal AI models, Chinese language models, enterprise solutions
+
+```bash
+# Coming soon in Phase 1.3
+axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
+axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
+axon install modelscope/cv/resnet50@latest
+```
+
 ### Combined Coverage
 
 - **Hugging Face**: 60%+ of ML practitioners
-- **PyTorch Hub**: 5%+ of ML practitioners
-- **ModelScope**: 8%+ of ML practitioners (growing)
-- **TensorFlow Hub**: 7%+ of ML practitioners
+- **PyTorch Hub**: 5%+ of ML practitioners (v1.1.0+)
+- **TensorFlow Hub**: 7%+ of ML practitioners (v1.2.0+)
+- **ModelScope**: 8%+ of ML practitioners (growing) - Coming soon
 - **Total**: **80%+ of ML model user base**
 
 ## Future Adapters (Post-Phase 1)
