@@ -142,7 +142,9 @@ func (pb *PackageBuilder) Build(destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create package file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	gzWriter := gzip.NewWriter(file)
 	defer func() {
@@ -204,7 +206,9 @@ func ComputeChecksum(filePath string) (string, int64, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	size, err := io.Copy(hasher, file)
 	if err != nil {
