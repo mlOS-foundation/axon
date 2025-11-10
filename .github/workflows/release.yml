@@ -113,6 +113,32 @@ jobs:
           echo "Asset names:"
           ls -1 release/
 
+      - name: Get release notes from CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          # Extract release notes from CHANGELOG.md for this version
+          if [ -f CHANGELOG.md ]; then
+            # Use awk to extract the section for this version
+            awk -v version="[$VERSION]" '
+              /^## \[/ { found=0 }
+              $0 ~ "^## " version { found=1; next }
+              found && /^## \[/ { exit }
+              found { print }
+            ' CHANGELOG.md > release_notes.txt || echo "Could not extract from CHANGELOG.md"
+          else
+            echo "CHANGELOG.md not found, using tag message"
+            echo "" > release_notes.txt
+          fi
+          # Get tag message as fallback
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' "v${VERSION}" 2>/dev/null || echo "")
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "tag_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -136,7 +162,9 @@ jobs:
 
             ### Changes
 
-            See [CHANGELOG.md](CHANGELOG.md) for details.
+            ${{ steps.changelog.outputs.changelog }}
+
+            For full details, see [CHANGELOG.md](https://github.com/mlOS-foundation/axon/blob/v${{ steps.get_version.outputs.version }}/CHANGELOG.md).
 
             ---
 
