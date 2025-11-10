@@ -1,3 +1,4 @@
+// Package registry provides HTTP client for Axon-compatible registries.
 package registry
 
 import (
