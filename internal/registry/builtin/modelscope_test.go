@@ -1,5 +1,5 @@
-// Package examples provides tests for example adapters.
-package examples
+// Package builtin provides tests for builtin adapters.
+package builtin
 
 import (
 	"context"

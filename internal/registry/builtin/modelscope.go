@@ -1,17 +1,11 @@
-// Package examples provides example adapter implementations for reference.
-// This package demonstrates how to create new adapters using the adapter framework.
+// Package builtin provides default adapters for Axon.
 //
-// Example: ModelScope Adapter
+// ModelScope Adapter
 //
 // ModelScope (https://www.modelscope.cn) is Alibaba Cloud's model repository,
 // popular in Asia-Pacific markets and for multimodal AI applications.
-//
-// This adapter demonstrates:
-//   - REST API integration
-//   - Model validation
-//   - Package creation
-//   - Error handling
-package examples
+// It provides 5,000+ models with a focus on multimodal AI and enterprise solutions.
+package builtin
 
 import (
 	"context"

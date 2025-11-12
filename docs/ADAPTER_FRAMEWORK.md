@@ -11,8 +11,8 @@ Axon's adapter framework is a **pluggable, extensible architecture** that enable
 The framework consists of three main packages:
 
 1. **`core/`** - Core interfaces and utilities
-2. **`builtin/`** - Default adapters (Hugging Face, PyTorch Hub, TensorFlow Hub, Local)
-3. **`examples/`** - Example adapters for reference (ModelScope)
+2. **`builtin/`** - Default adapters (Hugging Face, PyTorch Hub, TensorFlow Hub, ModelScope, Local)
+3. **`examples/`** - Example adapters for reference (Replicate)
 
 ### Package Structure
 
@@ -26,10 +26,11 @@ internal/registry/
 │   ├── huggingface.go
 │   ├── pytorch.go
 │   ├── tensorflow.go
+│   ├── modelscope.go
 │   ├── local.go
 │   └── register.go    # Registration helper
 └── examples/          # Example adapters
-    └── modelscope.go  # Complete ModelScope implementation
+    └── replicate.go   # Complete Replicate implementation
 ```
 
 ## Framework Components
@@ -85,9 +86,9 @@ builtin.RegisterDefaultAdapters(registry, ...)
 adapter, _ := registry.FindAdapter("namespace", "model")
 ```
 
-## Example: ModelScope Adapter
+## Example: Replicate Adapter
 
-The ModelScope adapter (`examples/modelscope.go`) demonstrates how to implement a new adapter using the framework. Here's how it works:
+The Replicate adapter (`examples/replicate.go`) demonstrates how to implement a new adapter using the framework. It shows API-based model access patterns (vs file-based adapters). Here's how it works:
 
 ### Step 1: Define the Adapter Struct
 

@@ -22,7 +22,11 @@ func RegisterDefaultAdapters(registry *core.AdapterRegistry, localRegistryURL st
 	tfhubAdapter := NewTensorFlowHubAdapter()
 	registry.Register(tfhubAdapter)
 
-	// 4. Hugging Face (fallback - can handle any model)
+	// 4. ModelScope - handles modelscope/ and ms/ namespaces
+	modelscopeAdapter := NewModelScopeAdapter()
+	registry.Register(modelscopeAdapter)
+
+	// 5. Hugging Face (fallback - can handle any model)
 	if enableHF {
 		if hfToken != "" {
 			hfAdapter := NewHuggingFaceAdapterWithToken(hfToken)

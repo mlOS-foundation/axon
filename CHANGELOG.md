@@ -8,10 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- ModelScope adapter (Phase 1)
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
+
+## [1.4.0] - 2024-11-10
+
+### Added
+- **ModelScope Adapter**: Full support for installing models from ModelScope (Alibaba Cloud's model repository) (#17)
+  - Automatic detection of ModelScope models via `modelscope/` and `ms/` namespaces
+  - Support for multimodal AI models (vision, audio, text)
+  - REST API integration for model discovery and metadata fetching
+  - Automatic manifest creation with model metadata
+  - On-the-fly package generation from ModelScope downloads
+  - Comprehensive unit tests
+  - Promoted from example adapter to builtin adapter
+- **Replicate Example Adapter**: New example adapter demonstrating API-based model access patterns
+  - Shows how to implement adapters for API-based repositories
+  - Demonstrates different patterns from file-based adapters
+  - Complete implementation with tests in `internal/registry/examples/`
+
+### Changed
+- **ModelScope Promotion**: ModelScope adapter moved from `examples/` to `builtin/` package
+  - Now registered automatically with `RegisterDefaultAdapters()`
+  - Available by default in all Axon installations
+  - Updated adapter priority: Local → PyTorch Hub → TensorFlow Hub → ModelScope → Hugging Face
+- **Adapter Registration**: Updated `builtin/register.go` to include ModelScope adapter
+- **Coverage Statistics**: Axon now supports 80%+ of ML practitioners with ModelScope included
+
+### Documentation
+- Updated `README.md` with ModelScope as available adapter (v1.4.0+)
+- Updated `REPOSITORY_ADAPTERS.md` with full ModelScope adapter documentation
+- Updated `ADAPTER_ROADMAP.md` marking ModelScope as completed (v1.4.0)
+- Updated `ADAPTER_FRAMEWORK.md` to use Replicate as example instead of ModelScope
+- Updated website (`ecosystem.html`) to show ModelScope as available
 
 ## [1.3.0] - 2024-11-10
 
