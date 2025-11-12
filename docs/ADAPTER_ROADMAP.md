@@ -67,16 +67,27 @@ axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
 
 **Source**: TensorFlow Hub is widely used in production environments, especially for TensorFlow-based deployments and Google Cloud ML workflows. It serves a significant portion of the enterprise ML market.
 
-### 🚧 Phase 1.3: ModelScope Adapter (In Pipeline)
+### ✅ Phase 1.3: ModelScope Adapter (Completed - v1.4.0)
 
-**Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
-
-### 🚧 ModelScope Adapter
-
-**Status**: Planned for Phase 1  
+**Status**: Production Ready  
+**Release**: v1.4.0 (November 2025)  
 **Coverage**: ~8% of ML practitioners (growing rapidly)  
-**Models**: 5,000+ models, with strong focus on multimodal AI  
-**Timeline**: Q2 2025
+**Models**: 5,000+ models, with strong focus on multimodal AI
+
+**Usage**:
+```bash
+axon install modelscope/damo/cv_resnet50_image-classification@latest
+axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
+axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
+```
+
+**Features**:
+- Real-time downloads from ModelScope (modelscope.cn)
+- Automatic package creation (`.axon` format)
+- Support for multimodal AI models
+- REST API integration for model discovery
+- Automatic checksum computation
+- Progress tracking
 
 **Use Cases**:
 - Multimodal AI models (vision, audio, text)
@@ -84,14 +95,9 @@ axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
 - Enterprise AI solutions
 - Research and production deployments
 
-**Planned Usage**:
-```bash
-axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
-axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
-axon install modelscope/cv/resnet50@latest
-```
-
 **Source**: ModelScope by Alibaba Cloud has seen rapid adoption, particularly in Asia-Pacific markets and for multimodal AI applications. It offers a complementary model collection to Hugging Face with strong enterprise support.
+
+**Note**: ONNX Model Zoo has been deprecated as of July 1, 2025, with models transitioning to Hugging Face. See [ONNX Model Zoo deprecation notice](https://onnx.ai/models/). ONNX models are now available via Hugging Face at [huggingface.co/onnxmodelzoo](https://huggingface.co/onnxmodelzoo).
 
 ## Combined Coverage
 
@@ -102,7 +108,7 @@ axon install modelscope/cv/resnet50@latest
 - **Hugging Face Hub**: 60%+ of ML practitioners
 - **PyTorch Hub**: 5%+ of ML practitioners (v1.1.0+)
 - **TensorFlow Hub**: 7%+ of ML practitioners (v1.2.0+)
-- **ModelScope**: 8%+ of ML practitioners (growing) - Coming soon
+- **ModelScope**: 8%+ of ML practitioners (v1.4.0+)
 - **Total**: **80%+ of ML model user base**
 
 **Note**: There is overlap between repositories (users may use multiple), but the combined coverage ensures Axon works for the vast majority of ML practitioners across research, production, and enterprise use cases.

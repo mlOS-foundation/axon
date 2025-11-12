@@ -7,7 +7,7 @@ This guide explains how to create new repository adapters for Axon using the ref
 1. [Architecture Overview](#architecture-overview)
 2. [Design Patterns Used](#design-patterns-used)
 3. [Creating a New Adapter](#creating-a-new-adapter)
-4. [Example: ModelScope Adapter](#example-modelscope-adapter)
+4. [Example: Replicate Adapter](#example-replicate-adapter)
 5. [Best Practices](#best-practices)
 6. [Testing Your Adapter](#testing-your-adapter)
 7. [Registering Your Adapter](#registering-your-adapter)
@@ -105,7 +105,7 @@ adapter, err := registry.FindAdapter("namespace", "model-name")
 
 ### Step 1: Create Adapter Struct
 
-Create a new file in your package (e.g., `examples/modelscope.go`):
+Create a new file in your package (e.g., `examples/replicate.go`):
 
 ```go
 package examples
@@ -119,8 +119,8 @@ import (
     "github.com/mlOS-foundation/axon/pkg/types"
 )
 
-// ModelScopeAdapter implements RepositoryAdapter for ModelScope
-type ModelScopeAdapter struct {
+// ReplicateAdapter implements RepositoryAdapter for Replicate
+type ReplicateAdapter struct {
     httpClient    *core.HTTPClient
     baseURL       string
     token         string
@@ -239,22 +239,22 @@ The framework provides several helpers:
 - **`core.DownloadFile()`**: Download files with progress
 - **`core.ComputeChecksum()`**: Compute SHA256 checksums
 
-## Example: ModelScope Adapter
+## Example: Replicate Adapter
 
-See `internal/registry/examples/modelscope.go` for a complete implementation example.
+See `internal/registry/examples/replicate.go` for a complete implementation example.
 
-### ModelScope Overview
+### Replicate Overview
 
-- **Base URL**: https://www.modelscope.cn
-- **API**: REST API with model metadata
-- **Namespace**: `modelscope` or `ms`
-- **Format**: `modelscope/{owner}/{model_name}@version`
+- **Base URL**: https://api.replicate.com
+- **API**: REST API for hosted inference models
+- **Namespace**: `replicate` or `rep`
+- **Format**: `replicate/{owner}/{model_name}@version`
 
 ### Key Features
 
 1. **Model Validation**: Validates model exists before creating manifest
-2. **Metadata Fetching**: Uses ModelScope API to get model information
-3. **Package Creation**: Creates .axon packages on-the-fly
+2. **Metadata Fetching**: Uses Replicate API to get model information
+3. **Package Creation**: Creates .axon packages with metadata (API-based adapter)
 4. **Progress Tracking**: Reports download progress
 
 ## Best Practices
@@ -476,6 +476,6 @@ err := core.DownloadFile(ctx, httpClient, url, destPath, progress)
 
 - [Adapter Interface Documentation](../internal/registry/core/adapter.go)
 - [Helper Functions](../internal/registry/core/helpers.go)
-- [Example: ModelScope Adapter](../internal/registry/examples/modelscope.go)
+- [Example: Replicate Adapter](../internal/registry/examples/replicate.go)
 - [Builtin Adapters](../internal/registry/builtin/)
 

@@ -11,8 +11,8 @@ Axon's adapter framework is a **pluggable, extensible architecture** that enable
 The framework consists of three main packages:
 
 1. **`core/`** - Core interfaces and utilities
-2. **`builtin/`** - Default adapters (Hugging Face, PyTorch Hub, TensorFlow Hub, Local)
-3. **`examples/`** - Example adapters for reference (ModelScope)
+2. **`builtin/`** - Default adapters (Hugging Face, PyTorch Hub, TensorFlow Hub, ModelScope, Local)
+3. **`examples/`** - Example adapters for reference (Replicate)
 
 ### Package Structure
 
@@ -26,10 +26,11 @@ internal/registry/
 │   ├── huggingface.go
 │   ├── pytorch.go
 │   ├── tensorflow.go
+│   ├── modelscope.go
 │   ├── local.go
 │   └── register.go    # Registration helper
 └── examples/          # Example adapters
-    └── modelscope.go  # Complete ModelScope implementation
+    └── replicate.go   # Complete Replicate implementation
 ```
 
 ## Framework Components
@@ -85,9 +86,9 @@ builtin.RegisterDefaultAdapters(registry, ...)
 adapter, _ := registry.FindAdapter("namespace", "model")
 ```
 
-## Example: ModelScope Adapter
+## Example: Replicate Adapter
 
-The ModelScope adapter (`examples/modelscope.go`) demonstrates how to implement a new adapter using the framework. Here's how it works:
+The Replicate adapter (`examples/replicate.go`) demonstrates how to implement a new adapter using the framework. It shows API-based model access patterns (vs file-based adapters). Here's how it works:
 
 ### Step 1: Define the Adapter Struct
 
@@ -180,33 +181,34 @@ The framework provides several helpers:
 - **`core.DownloadFile()`**: Download files with progress
 - **`core.ComputeChecksum()`**: SHA256 checksums
 
-### Complete ModelScope Implementation Flow
+### Complete Replicate Implementation Flow
 
 ```
-1. User runs: axon install modelscope/damo/cv_resnet50@latest
+1. User runs: axon install replicate/stability-ai/stable-diffusion@latest
                     │
                     ▼
-2. CLI calls: adapterRegistry.FindAdapter("modelscope", "damo/cv_resnet50")
+2. CLI calls: adapterRegistry.FindAdapter("replicate", "stability-ai/stable-diffusion")
                     │
                     ▼
-3. Registry checks: ModelScopeAdapter.CanHandle("modelscope", "damo/cv_resnet50")
+3. Registry checks: ReplicateAdapter.CanHandle("replicate", "stability-ai/stable-diffusion")
                     │ Returns: true
                     ▼
-4. Registry returns: ModelScopeAdapter instance
+4. Registry returns: ReplicateAdapter instance
                     │
                     ▼
-5. CLI calls: adapter.GetManifest(ctx, "modelscope", "damo/cv_resnet50", "latest")
+5. CLI calls: adapter.GetManifest(ctx, "replicate", "stability-ai/stable-diffusion", "latest")
                     │
                     ├─► Validates model exists (ModelValidator)
-                    ├─► Fetches metadata from ModelScope API
+                    ├─► Fetches metadata from Replicate API
                     └─► Creates manifest
                     │
                     ▼
 6. CLI calls: adapter.DownloadPackage(ctx, manifest, destPath, progress)
                     │
                     ├─► Creates PackageBuilder
-                    ├─► Downloads files (core.DownloadFile)
-                    ├─► Adds files to package (builder.AddFile)
+                    ├─► Creates metadata package (API-based adapter)
+                    │   └─► Write metadata.json with API information
+                    ├─► Adds metadata to package (builder.AddFile)
                     ├─► Builds package (builder.Build)
                     └─► Updates checksum (core.UpdateManifestWithChecksum)
                     │

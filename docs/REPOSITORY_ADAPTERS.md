@@ -383,25 +383,51 @@ axon install tfhub/google/universal-sentence-encoder/4@latest
 axon install tfhub/tensorflow/bert_en_uncased_L-12_H-768_A-12/4@latest
 ```
 
-### ModelScope Adapter (Phase 1.3 - Coming Soon)
+### 5. ModelScope Adapter (v1.4.0+)
 
-**Status**: 🚧 In Pipeline  
-**Coverage**: ~8% of ML model user base (growing rapidly)  
-**Use Case**: Multimodal AI models, Chinese language models, enterprise solutions
+**Purpose**: Download models directly from ModelScope (Alibaba Cloud's model repository) in real-time
 
+**Usage**:
 ```bash
-# Coming soon in Phase 1.3
-axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
+# Install ModelScope models
+axon install modelscope/damo/cv_resnet50_image-classification@latest
 axon install modelscope/ai/modelscope_damo-text-to-video-synthesis@latest
-axon install modelscope/cv/resnet50@latest
+axon install modelscope/damo/nlp_structbert_sentence-similarity_chinese-base@latest
 ```
+
+**Features**:
+- ✅ Real-time downloads from ModelScope (modelscope.cn)
+- ✅ Automatic package creation (`.axon` format)
+- ✅ Support for multimodal AI models
+- ✅ REST API integration for model discovery
+- ✅ Automatic checksum computation
+- ✅ Progress tracking
+
+**How it works**:
+1. Axon parses the model specification (e.g., `modelscope/damo/cv_resnet50`)
+2. Validates model existence via ModelScope API
+3. Fetches model metadata from ModelScope REST API
+4. Downloads model files and creates `.axon` package
+5. Computes SHA256 checksum
+6. Caches package locally
+
+**Model Format**:
+- Format: `modelscope/{owner}/{model_name}@version`
+- Example: `modelscope/damo/cv_resnet50_image-classification@latest`
+- Supports both `modelscope/` and `ms/` namespaces
+
+**Use Cases**:
+- Multimodal AI models (vision, audio, text)
+- Chinese language models and datasets
+- Enterprise AI solutions
+- Research and production deployments
 
 ### Combined Coverage
 
 - **Hugging Face**: 60%+ of ML practitioners
 - **PyTorch Hub**: 5%+ of ML practitioners (v1.1.0+)
 - **TensorFlow Hub**: 7%+ of ML practitioners (v1.2.0+)
-- **ModelScope**: 8%+ of ML practitioners (growing) - Coming soon
+- **ModelScope**: 8%+ of ML practitioners (v1.4.0+)
 - **Total**: **80%+ of ML model user base**
 
 ## Future Adapters (Post-Phase 1)
