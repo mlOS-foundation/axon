@@ -82,7 +82,7 @@ axon uninstall vision/resnet50
 
 ## 🔗 MLOS Core Integration
 
-Axon integrates seamlessly with [MLOS Core](https://github.com/mlOS-foundation/core) for kernel-level model execution:
+Axon integrates seamlessly with MLOS Core for kernel-level model execution:
 
 ```bash
 # 1. Install model with Axon
