@@ -276,7 +276,9 @@ cat ~/.axon/cache/<namespace>/<name>/<version>/manifest.yaml
 ## Next Steps
 
 1. **Install Axon**: `curl -sSL axon.mlosfoundation.org | sh`
-2. **Install MLOS Core**: See [MLOS Core README](https://github.com/mlOS-foundation/core)
-3. **Try the E2E Demo**: See [demo script](https://github.com/mlOS-foundation/core/examples/e2e_axon_mlos_demo.sh)
-4. **Build Your Application**: Use MLOS Core APIs for inference
+2. **Install MLOS Core**: Build from source or use package manager (see MLOS Core documentation)
+3. **Try the E2E Demo**: Run the demo script included in MLOS Core examples directory
+4. **Build Your Application**: Use MLOS Core APIs (HTTP/gRPC/IPC) for inference
+
+**Note:** MLOS Core is a kernel-level ML runtime that provides multi-protocol APIs (HTTP, gRPC, IPC) for model execution. It reads Axon packages (MPF) and routes models to appropriate framework plugins for kernel-level inference.
 
