@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -202,6 +204,11 @@ func (m *ModelScopeAdapter) DownloadPackage(ctx context.Context, manifest *types
 	// Add downloaded file to package
 	if err := builder.AddFile(tempFile, "model.tar.gz"); err != nil {
 		return fmt.Errorf("failed to add file to package: %w", err)
+	}
+
+	// Ensure destination directory exists
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	// Build package

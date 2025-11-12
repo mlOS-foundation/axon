@@ -6,6 +6,8 @@ Thank you for contributing to Axon! This document provides guidelines and instru
 
 ### Before Pushing PR Updates
 
+**⚠️ CRITICAL: Always run local validation before marking a PR as ready for review!**
+
 Always run validation checks before pushing PR updates:
 
 ```bash
@@ -65,16 +67,29 @@ make validate-pr
    ```bash
    make validate-pr
    ```
+   **⚠️ Ensure all checks pass before proceeding!**
 
 4. **Push and create PR**
    ```bash
    git push origin feature/your-feature-name
-   gh pr create --title "feat: Add your feature" --body "Description"
+   gh pr create --title "feat: Add your feature" --body "Description" --draft
    ```
 
-5. **Wait for CI** - GitHub Actions will run the same checks
+5. **Run validation again** after any fixes
+   ```bash
+   make validate-pr
+   ```
 
-6. **Address feedback** - If CI fails, fix issues and push again
+6. **Mark PR as ready** only after all local validation passes
+   ```bash
+   gh pr ready 18  # Only after validation passes!
+   ```
+
+7. **Wait for CI** - GitHub Actions will run the same checks
+
+8. **Address feedback** - If CI fails, fix issues locally, validate, and push again
+
+**Never mark a PR as ready for review if local validation fails!**
 
 ## Code Standards
 
