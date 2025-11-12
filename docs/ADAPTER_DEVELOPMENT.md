@@ -7,7 +7,7 @@ This guide explains how to create new repository adapters for Axon using the ref
 1. [Architecture Overview](#architecture-overview)
 2. [Design Patterns Used](#design-patterns-used)
 3. [Creating a New Adapter](#creating-a-new-adapter)
-4. [Example: ModelScope Adapter](#example-modelscope-adapter)
+4. [Example: Replicate Adapter](#example-replicate-adapter)
 5. [Best Practices](#best-practices)
 6. [Testing Your Adapter](#testing-your-adapter)
 7. [Registering Your Adapter](#registering-your-adapter)
@@ -105,7 +105,7 @@ adapter, err := registry.FindAdapter("namespace", "model-name")
 
 ### Step 1: Create Adapter Struct
 
-Create a new file in your package (e.g., `examples/modelscope.go`):
+Create a new file in your package (e.g., `examples/replicate.go`):
 
 ```go
 package examples
@@ -119,8 +119,8 @@ import (
     "github.com/mlOS-foundation/axon/pkg/types"
 )
 
-// ModelScopeAdapter implements RepositoryAdapter for ModelScope
-type ModelScopeAdapter struct {
+// ReplicateAdapter implements RepositoryAdapter for Replicate
+type ReplicateAdapter struct {
     httpClient    *core.HTTPClient
     baseURL       string
     token         string
