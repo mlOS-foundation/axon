@@ -547,10 +547,9 @@ func registerCmd() *cobra.Command {
 			// Register with MLOS Core via HTTP API
 			registerURL := fmt.Sprintf("%s/models/register", mlosEndpoint)
 
-			// Build registration payload (escape JSON string properly)
-			manifestJSON := strings.ReplaceAll(string(manifestData), `"`, `\"`)
-			manifestJSON = strings.ReplaceAll(manifestJSON, "\n", "\\n")
-			_ = manifestJSON // Used in payload below
+			// Build registration payload
+			// Note: We send manifest_path instead of the full manifest JSON
+			// MLOS Core will read the manifest from the path
 			payload := fmt.Sprintf(`{
 				"model_id": "%s/%s@%s",
 				"name": "%s",
