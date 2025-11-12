@@ -247,8 +247,8 @@ See `internal/registry/examples/replicate.go` for a complete implementation exam
 
 - **Base URL**: https://api.replicate.com
 - **API**: REST API for hosted inference models
-- **Namespace**: `modelscope` or `ms`
-- **Format**: `modelscope/{owner}/{model_name}@version`
+- **Namespace**: `replicate` or `rep`
+- **Format**: `replicate/{owner}/{model_name}@version`
 
 ### Key Features
 
