@@ -92,7 +92,7 @@ axon install hf/bert-base-uncased@latest
 axon register hf/bert-base-uncased@latest
 
 # 3. Model is now ready for kernel-level inference via MLOS Core API
-# See: https://github.com/mlOS-foundation/core/docs/AXON_MLOS_INTEGRATION.md
+# See docs/E2E_INTEGRATION.md for complete workflow
 ```
 
 **How It Works:**

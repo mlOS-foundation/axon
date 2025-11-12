@@ -267,10 +267,11 @@ cat ~/.axon/cache/<namespace>/<name>/<version>/manifest.yaml
 
 ## Related Documentation
 
-- [Axon-MLOS Integration](https://github.com/mlOS-foundation/core/docs/AXON_MLOS_INTEGRATION.md)
-- [Axon-MLOS Architecture](https://github.com/mlOS-foundation/core/docs/AXON_MLOS_ARCHITECTURE.md)
-- [MLOS Core API Documentation](https://github.com/mlOS-foundation/core/README.md)
 - [Axon Repository Adapters](docs/REPOSITORY_ADAPTERS.md)
+- [Adapter Framework](docs/ADAPTER_FRAMEWORK.md)
+- [Adapter Development Guide](docs/ADAPTER_DEVELOPMENT.md)
+
+**Note:** MLOS Core integration documentation is available in the MLOS Core repository. The architecture follows the Model Package Format (MPF) specification from patent US-63/861,527, where Axon packages provide standardized model delivery and MLOS Core provides kernel-level execution.
 
 ## Next Steps
 
