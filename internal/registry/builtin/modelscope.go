@@ -204,6 +204,11 @@ func (m *ModelScopeAdapter) DownloadPackage(ctx context.Context, manifest *types
 		return fmt.Errorf("failed to add file to package: %w", err)
 	}
 
+	// Ensure destination directory exists
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
 	// Build package
 	if err := builder.Build(destPath); err != nil {
 		return fmt.Errorf("failed to build package: %w", err)
