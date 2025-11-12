@@ -253,8 +253,8 @@ See `internal/registry/examples/replicate.go` for a complete implementation exam
 ### Key Features
 
 1. **Model Validation**: Validates model exists before creating manifest
-2. **Metadata Fetching**: Uses ModelScope API to get model information
-3. **Package Creation**: Creates .axon packages on-the-fly
+2. **Metadata Fetching**: Uses Replicate API to get model information
+3. **Package Creation**: Creates .axon packages with metadata (API-based adapter)
 4. **Progress Tracking**: Reports download progress
 
 ## Best Practices
