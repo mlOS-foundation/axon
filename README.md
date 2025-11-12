@@ -70,12 +70,38 @@ axon info vision/resnet50@1.0.0
 # List installed (active pathways)
 axon list
 
+# Register with MLOS Core for kernel-level execution (v1.5.0+)
+axon register hf/bert-base-uncased@latest
+
 # Update model (strengthen the pathway)
 axon update vision/resnet50
 
 # Remove model (prune the pathway)
 axon uninstall vision/resnet50
 ```
+
+## 🔗 MLOS Core Integration
+
+Axon integrates seamlessly with [MLOS Core](https://github.com/mlOS-foundation/core) for kernel-level model execution:
+
+```bash
+# 1. Install model with Axon
+axon install hf/bert-base-uncased@latest
+
+# 2. Register with MLOS Core
+axon register hf/bert-base-uncased@latest
+
+# 3. Model is now ready for kernel-level inference via MLOS Core API
+# See: https://github.com/mlOS-foundation/core/docs/AXON_MLOS_INTEGRATION.md
+```
+
+**How It Works:**
+- Axon installs models as standardized packages (Model Package Format - MPF)
+- `axon register` sends the model manifest path to MLOS Core
+- MLOS Core reads the Axon manifest and prepares the model for execution
+- Models can then be used via MLOS Core's HTTP/gRPC/IPC APIs
+
+See [E2E Integration Guide](docs/E2E_INTEGRATION.md) for complete workflow.
 
 ## Universal Model Installer
 
