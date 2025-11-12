@@ -110,11 +110,11 @@ func (r *ReplicateAdapter) GetManifest(ctx context.Context, namespace, name, ver
 
 	// Parse API response
 	var apiResponse struct {
-		URL         string `json:"url"`
-		Owner       string `json:"owner"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Visibility  string `json:"visibility"`
+		URL           string `json:"url"`
+		Owner         string `json:"owner"`
+		Name          string `json:"name"`
+		Description   string `json:"description"`
+		Visibility    string `json:"visibility"`
 		LatestVersion struct {
 			ID      string `json:"id"`
 			Created string `json:"created_at"`
@@ -199,14 +199,14 @@ func (r *ReplicateAdapter) DownloadPackage(ctx context.Context, manifest *types.
 	defer func() {
 		_ = os.Remove(tempFile.Name())
 	}()
-	
+
 	if _, err := tempFile.WriteString(metadata); err != nil {
 		return fmt.Errorf("failed to write metadata: %w", err)
 	}
 	if err := tempFile.Close(); err != nil {
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
-	
+
 	if err := builder.AddFile(tempFile.Name(), "metadata.json"); err != nil {
 		return fmt.Errorf("failed to add metadata: %w", err)
 	}
@@ -308,4 +308,3 @@ func (r *ReplicateAdapter) createBasicManifest(namespace, name, version, owner, 
 		},
 	}
 }
-

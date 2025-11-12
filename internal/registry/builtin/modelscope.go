@@ -1,6 +1,6 @@
 // Package builtin provides default adapters for Axon.
 //
-// ModelScope Adapter
+// # ModelScope Adapter
 //
 // ModelScope (https://www.modelscope.cn) is Alibaba Cloud's model repository,
 // popular in Asia-Pacific markets and for multimodal AI applications.

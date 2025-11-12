@@ -239,14 +239,14 @@ The framework provides several helpers:
 - **`core.DownloadFile()`**: Download files with progress
 - **`core.ComputeChecksum()`**: Compute SHA256 checksums
 
-## Example: ModelScope Adapter
+## Example: Replicate Adapter
 
-See `internal/registry/examples/modelscope.go` for a complete implementation example.
+See `internal/registry/examples/replicate.go` for a complete implementation example.
 
-### ModelScope Overview
+### Replicate Overview
 
-- **Base URL**: https://www.modelscope.cn
-- **API**: REST API with model metadata
+- **Base URL**: https://api.replicate.com
+- **API**: REST API for hosted inference models
 - **Namespace**: `modelscope` or `ms`
 - **Format**: `modelscope/{owner}/{model_name}@version`
 
@@ -476,6 +476,6 @@ err := core.DownloadFile(ctx, httpClient, url, destPath, progress)
 
 - [Adapter Interface Documentation](../internal/registry/core/adapter.go)
 - [Helper Functions](../internal/registry/core/helpers.go)
-- [Example: ModelScope Adapter](../internal/registry/examples/modelscope.go)
+- [Example: Replicate Adapter](../internal/registry/examples/replicate.go)
 - [Builtin Adapters](../internal/registry/builtin/)
 

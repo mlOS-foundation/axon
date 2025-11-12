@@ -97,4 +97,3 @@ func TestReplicateAdapterWithToken(t *testing.T) {
 		t.Errorf("expected token 'test-token', got '%s'", adapter.apiToken)
 	}
 }
-
