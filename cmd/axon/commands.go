@@ -4,13 +4,17 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/mlOS-foundation/axon/internal/cache"
+	"github.com/mlOS-foundation/axon/internal/config"
+	"github.com/mlOS-foundation/axon/internal/manifest"
 	"github.com/mlOS-foundation/axon/internal/registry/builtin"
 	"github.com/mlOS-foundation/axon/internal/registry/core"
 	"github.com/mlOS-foundation/axon/pkg/types"
@@ -473,6 +477,118 @@ func verifyCmd() *cobra.Command {
 			}
 
 			fmt.Printf("✓ Signal integrity verified for %s/%s@%s\n", model.Namespace, model.Name, model.Version)
+			return nil
+		},
+	}
+}
+
+func registerCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "register [namespace/name[@version]]",
+		Short: "Register model with MLOS Core",
+		Long:  "Register an installed model with MLOS Core for kernel-level execution",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			modelSpec := args[0]
+			namespace, name, version := parseModelSpec(modelSpec)
+
+			if namespace == "" || name == "" {
+				return fmt.Errorf("invalid model specification: %s", modelSpec)
+			}
+
+			// Get MLOS Core endpoint from config or environment
+			mlosEndpoint := os.Getenv("MLOS_CORE_ENDPOINT")
+			if mlosEndpoint == "" {
+				mlosEndpoint = "http://localhost:8080"
+			}
+
+			fmt.Printf("🔌 Registering %s/%s@%s with MLOS Core...\n", namespace, name, version)
+
+			// Get cache directory from config
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			cacheMgr := cache.NewManager(cfg.CacheDir)
+
+			// Find the model
+			models, err := cacheMgr.ListCachedModels()
+			if err != nil {
+				return fmt.Errorf("failed to list models: %w", err)
+			}
+
+			var model *cache.CachedModel
+			for _, m := range models {
+				if m.Namespace == namespace && m.Name == name {
+					if version == "" || version == "latest" || m.Version == version {
+						model = &m
+						break
+					}
+				}
+			}
+
+			if model == nil {
+				return fmt.Errorf("model %s/%s not found. Install it first with 'axon install'", namespace, name)
+			}
+
+			// Read manifest
+			manifestPath := filepath.Join(model.Path, "manifest.yaml")
+			manifestData, err := os.ReadFile(manifestPath)
+			if err != nil {
+				return fmt.Errorf("failed to read manifest: %w", err)
+			}
+
+			// Parse manifest
+			manifestObj, err := manifest.ParseBytes(manifestData)
+			if err != nil {
+				return fmt.Errorf("failed to parse manifest: %w", err)
+			}
+
+			// Register with MLOS Core via HTTP API
+			registerURL := fmt.Sprintf("%s/models/register", mlosEndpoint)
+
+			// Build registration payload (escape JSON string properly)
+			manifestJSON := strings.ReplaceAll(string(manifestData), `"`, `\"`)
+			manifestJSON = strings.ReplaceAll(manifestJSON, "\n", "\\n")
+			payload := fmt.Sprintf(`{
+				"model_id": "%s/%s@%s",
+				"name": "%s",
+				"framework": "%s",
+				"path": "%s",
+				"description": "%s",
+				"manifest_path": "%s"
+			}`,
+				namespace, name, model.Version,
+				manifestObj.Metadata.Name,
+				manifestObj.Spec.Framework.Name,
+				model.Path,
+				manifestObj.Metadata.Description,
+				manifestPath,
+			)
+
+			// Make HTTP request
+			req, err := http.NewRequest("POST", registerURL, strings.NewReader(payload))
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			client := &http.Client{Timeout: 30 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to connect to MLOS Core at %s: %w\nMake sure MLOS Core is running: mlos_core", mlosEndpoint, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != 200 {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("MLOS Core registration failed (status %d): %s", resp.StatusCode, string(body))
+			}
+
+			fmt.Printf("✅ Model registered with MLOS Core\n")
+			fmt.Printf("   Model ID: %s/%s@%s\n", namespace, name, model.Version)
+			fmt.Printf("   Framework: %s\n", manifestObj.Spec.Framework.Name)
+			fmt.Printf("   Ready for kernel-level execution\n")
 			return nil
 		},
 	}
