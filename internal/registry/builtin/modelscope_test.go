@@ -56,7 +56,7 @@ func TestModelScopeAdapter_GetManifest(t *testing.T) {
 			namespace: "modelscope",
 			modelName: "damo/cv_resnet50",
 			version:   "latest",
-			wantErr:   true, // Will fail on validation since model may not exist
+			wantErr:   false, // Validation now works correctly, model exists
 		},
 		{
 			name:      "invalid format - no owner",
