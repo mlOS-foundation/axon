@@ -181,33 +181,34 @@ The framework provides several helpers:
 - **`core.DownloadFile()`**: Download files with progress
 - **`core.ComputeChecksum()`**: SHA256 checksums
 
-### Complete ModelScope Implementation Flow
+### Complete Replicate Implementation Flow
 
 ```
-1. User runs: axon install modelscope/damo/cv_resnet50@latest
+1. User runs: axon install replicate/stability-ai/stable-diffusion@latest
                     │
                     ▼
-2. CLI calls: adapterRegistry.FindAdapter("modelscope", "damo/cv_resnet50")
+2. CLI calls: adapterRegistry.FindAdapter("replicate", "stability-ai/stable-diffusion")
                     │
                     ▼
-3. Registry checks: ModelScopeAdapter.CanHandle("modelscope", "damo/cv_resnet50")
+3. Registry checks: ReplicateAdapter.CanHandle("replicate", "stability-ai/stable-diffusion")
                     │ Returns: true
                     ▼
-4. Registry returns: ModelScopeAdapter instance
+4. Registry returns: ReplicateAdapter instance
                     │
                     ▼
-5. CLI calls: adapter.GetManifest(ctx, "modelscope", "damo/cv_resnet50", "latest")
+5. CLI calls: adapter.GetManifest(ctx, "replicate", "stability-ai/stable-diffusion", "latest")
                     │
                     ├─► Validates model exists (ModelValidator)
-                    ├─► Fetches metadata from ModelScope API
+                    ├─► Fetches metadata from Replicate API
                     └─► Creates manifest
                     │
                     ▼
 6. CLI calls: adapter.DownloadPackage(ctx, manifest, destPath, progress)
                     │
                     ├─► Creates PackageBuilder
-                    ├─► Downloads files (core.DownloadFile)
-                    ├─► Adds files to package (builder.AddFile)
+                    ├─► Creates metadata package (API-based adapter)
+                    │   └─► Write metadata.json with API information
+                    ├─► Adds metadata to package (builder.AddFile)
                     ├─► Builds package (builder.Build)
                     └─► Updates checksum (core.UpdateManifestWithChecksum)
                     │
