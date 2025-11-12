@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model versioning and A/B testing
 - MLOS Core Runtime integration
 
+## [1.4.1] - 2024-11-12
+
+### Fixed
+- **ModelScope Validation**: Fixed incorrect model validation that was rejecting valid ModelScope models (#18)
+  - Made TensorFlow Hub validation check domain-specific (only applies to `tfhub.dev` and `kaggle.com`)
+  - ModelScope URLs are now validated correctly
+  - Fixes issue where `axon install modelscope/damo/cv_resnet50_image-classification@latest` was incorrectly reported as "model not found"
+- **ModelScope Package Creation**: Fixed package creation failure due to missing destination directory
+  - Added directory creation before building packages
+  - Ensures destination path exists before creating `.axon` package file
+
+### Documentation
+- Updated `CONTRIBUTING.md` to emphasize running local validation before marking PRs ready for review
+- Added explicit warning: "Never mark a PR as ready if local validation fails!"
+
 ## [1.4.0] - 2024-11-10
 
 ### Added
