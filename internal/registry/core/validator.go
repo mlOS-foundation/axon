@@ -100,13 +100,16 @@ func (mv *ModelValidator) ValidateModelExists(ctx context.Context, modelURL stri
 			}
 
 			// Check if URL was redirected to search/browse page (but not model page)
+			// This check is specific to TensorFlow Hub (tfhub.dev or kaggle.com)
 			finalURL := resp.Request.URL.String()
-			// TensorFlow Hub redirects to Kaggle, but valid models go to model pages
-			// Invalid models go to search/browse pages without publisher/model path
-			if strings.Contains(finalURL, "/models") && !strings.Contains(finalURL, "/google/") &&
-				!strings.Contains(finalURL, "/tensorflow/") && !strings.Contains(finalURL, "/publisher/") {
-				// Redirected to general models page - model doesn't exist
-				return false, nil
+			if strings.Contains(finalURL, "tfhub.dev") || strings.Contains(finalURL, "kaggle.com") {
+				// TensorFlow Hub redirects to Kaggle, but valid models go to model pages
+				// Invalid models go to search/browse pages without publisher/model path
+				if strings.Contains(finalURL, "/models") && !strings.Contains(finalURL, "/google/") &&
+					!strings.Contains(finalURL, "/tensorflow/") && !strings.Contains(finalURL, "/publisher/") {
+					// Redirected to general models page - model doesn't exist
+					return false, nil
+				}
 			}
 		}
 		return true, nil
