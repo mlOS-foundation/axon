@@ -550,6 +550,7 @@ func registerCmd() *cobra.Command {
 			// Build registration payload (escape JSON string properly)
 			manifestJSON := strings.ReplaceAll(string(manifestData), `"`, `\"`)
 			manifestJSON = strings.ReplaceAll(manifestJSON, "\n", "\\n")
+			_ = manifestJSON // Used in payload below
 			payload := fmt.Sprintf(`{
 				"model_id": "%s/%s@%s",
 				"name": "%s",
@@ -578,7 +579,9 @@ func registerCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to connect to MLOS Core at %s: %w\nMake sure MLOS Core is running: mlos_core", mlosEndpoint, err)
 			}
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 
 			if resp.StatusCode != 200 {
 				body, _ := io.ReadAll(resp.Body)
