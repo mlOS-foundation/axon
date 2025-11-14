@@ -598,7 +598,7 @@ Examples:
 			client := &http.Client{Timeout: 2 * time.Second}
 			resp, err := client.Do(req)
 			if err == nil {
-				resp.Body.Close()
+				_ = resp.Body.Close() // Ignore close error for notification
 				fmt.Printf("✅ Notified MLOS Core\n")
 			} else {
 				fmt.Printf("⚠️  MLOS Core not running (will auto-discover on startup)\n")
