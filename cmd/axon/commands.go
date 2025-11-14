@@ -482,6 +482,137 @@ func verifyCmd() *cobra.Command {
 	}
 }
 
+func publishCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "publish [namespace/name[@version]]",
+		Short: "Publish model to MLOS Core repository",
+		Long: `Publishes a model from development cache to production repository.
+		
+Per architecture design:
+- Development: Models installed to ~/.axon/cache/ (user-writable)
+- Production: Models published to /var/lib/mlos/models/ (OS-managed)
+- Explicit promotion: Clear separation between dev and prod
+
+Examples:
+  axon publish hf/bert-base-uncased@latest
+  axon publish hf/bert-base-uncased@latest --target localhost`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			modelSpec := args[0]
+			namespace, name, version := parseModelSpec(modelSpec)
+
+			if namespace == "" || name == "" {
+				return fmt.Errorf("invalid model specification: %s", modelSpec)
+			}
+
+			// Get target (default: localhost)
+			target, _ := cmd.Flags().GetString("target")
+			if target == "" {
+				target = "localhost"
+			}
+
+			// Get cache directory from config
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			cacheMgr := cache.NewManager(cfg.CacheDir)
+
+			// Check if model is cached
+			if !cacheMgr.IsModelCached(namespace, name, version) {
+				return fmt.Errorf("model %s not found in cache. Install it first with 'axon install'", modelSpec)
+			}
+
+			// Get source path (cache)
+			sourcePath := cacheMgr.GetModelPath(namespace, name, version)
+
+			// Determine target path (production repository)
+			// For now, support localhost only (local filesystem)
+			var targetPath string
+			if target == "localhost" || target == "127.0.0.1" || target == "" {
+				// Local filesystem: /var/lib/mlos/models/
+				targetPath = filepath.Join("/var/lib/mlos/models", namespace, name, version)
+			} else {
+				// Future: Support remote targets (SSH, API upload, etc.)
+				return fmt.Errorf("remote targets not yet implemented. Use 'localhost' for now")
+			}
+
+			fmt.Printf("📦 Publishing model: %s/%s@%s\n", namespace, name, version)
+			fmt.Printf("   Source: %s\n", sourcePath)
+			fmt.Printf("   Target: %s\n", targetPath)
+
+			// Validate model (check for manifest.yaml)
+			manifestPath := filepath.Join(sourcePath, "manifest.yaml")
+			if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+				return fmt.Errorf("manifest.yaml not found in %s. Model may be corrupted", sourcePath)
+			}
+
+			// Create target directory
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return fmt.Errorf("failed to create target directory: %w", err)
+			}
+
+			// Copy all files from source to target
+			// Use filepath.Walk to recursively copy
+			err = filepath.Walk(sourcePath, func(srcPath string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				// Get relative path from source
+				relPath, err := filepath.Rel(sourcePath, srcPath)
+				if err != nil {
+					return err
+				}
+
+				// Build destination path
+				dstPath := filepath.Join(targetPath, relPath)
+
+				if info.IsDir() {
+					// Create directory
+					return os.MkdirAll(dstPath, info.Mode())
+				} else {
+					// Copy file
+					return copyFile(srcPath, dstPath)
+				}
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to copy model files: %w", err)
+			}
+
+			// Set permissions (try to set ownership to mlos:mlos, but don't fail if not root)
+			// In production, this should be done by setup script or with proper permissions
+			fmt.Printf("✅ Model published successfully\n")
+			fmt.Printf("   Location: %s\n", targetPath)
+
+			// Notify MLOS Core (if running)
+			mlosEndpoint := os.Getenv("MLOS_CORE_ENDPOINT")
+			if mlosEndpoint == "" {
+				mlosEndpoint = "http://localhost:8080"
+			}
+
+			// Try to notify MLOS Core (non-blocking - it will auto-discover on next scan)
+			notifyURL := fmt.Sprintf("%s/models/scan", mlosEndpoint)
+			req, _ := http.NewRequest("POST", notifyURL, nil)
+			client := &http.Client{Timeout: 2 * time.Second}
+			resp, err := client.Do(req)
+			if err == nil {
+				_ = resp.Body.Close() // Ignore close error for notification
+				fmt.Printf("✅ Notified MLOS Core\n")
+			} else {
+				fmt.Printf("⚠️  MLOS Core not running (will auto-discover on startup)\n")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("target", "localhost", "Target MLOS Core instance (default: localhost)")
+
+	return cmd
+}
+
 func registerCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "register [namespace/name[@version]]",
@@ -511,28 +642,44 @@ func registerCmd() *cobra.Command {
 			}
 			cacheMgr := cache.NewManager(cfg.CacheDir)
 
-			// Find the model
-			models, err := cacheMgr.ListCachedModels()
-			if err != nil {
-				return fmt.Errorf("failed to list models: %w", err)
-			}
-
+			// Per architecture: Check published models first, then cache
+			// Published models: /var/lib/mlos/models/namespace/name/version/
+			// Development cache: ~/.axon/cache/models/namespace/name/version/
 			var model *cache.CachedModel
-			for _, m := range models {
-				if m.Namespace == namespace && m.Name == name {
-					if version == "" || version == "latest" || m.Version == version {
-						model = &m
-						break
+			var modelPath string
+
+			// First, check published models (production repository)
+			publishedPath := filepath.Join("/var/lib/mlos/models", namespace, name, version)
+			publishedManifest := filepath.Join(publishedPath, "manifest.yaml")
+			if _, err := os.Stat(publishedManifest); err == nil {
+				// Model is published - use published location
+				modelPath = publishedPath
+				fmt.Printf("📦 Using published model: %s\n", publishedPath)
+			} else {
+				// Fallback: Check development cache
+				models, err := cacheMgr.ListCachedModels()
+				if err != nil {
+					return fmt.Errorf("failed to list models: %w", err)
+				}
+
+				for _, m := range models {
+					if m.Namespace == namespace && m.Name == name {
+						if version == "" || version == "latest" || m.Version == version {
+							model = &m
+							modelPath = m.Path
+							fmt.Printf("📦 Using cached model: %s\n", modelPath)
+							break
+						}
 					}
+				}
+
+				if model == nil {
+					return fmt.Errorf("model %s/%s@%s not found. Install it first with 'axon install' or publish it with 'axon publish'", namespace, name, version)
 				}
 			}
 
-			if model == nil {
-				return fmt.Errorf("model %s/%s not found. Install it first with 'axon install'", namespace, name)
-			}
-
 			// Read manifest
-			manifestPath := filepath.Join(model.Path, "manifest.yaml")
+			manifestPath := filepath.Join(modelPath, "manifest.yaml")
 			manifestData, err := os.ReadFile(manifestPath)
 			if err != nil {
 				return fmt.Errorf("failed to read manifest: %w", err)
@@ -558,10 +705,15 @@ func registerCmd() *cobra.Command {
 				"description": "%s",
 				"manifest_path": "%s"
 			}`,
-				namespace, name, model.Version,
+				namespace, name, func() string {
+					if model != nil {
+						return model.Version
+					}
+					return version
+				}(),
 				manifestObj.Metadata.Name,
 				manifestObj.Spec.Framework.Name,
-				model.Path,
+				modelPath,
 				manifestObj.Metadata.Description,
 				manifestPath,
 			)
@@ -587,8 +739,17 @@ func registerCmd() *cobra.Command {
 				return fmt.Errorf("MLOS Core registration failed (status %d): %s", resp.StatusCode, string(body))
 			}
 
+			// Get version from model or use provided version
+			modelVersion := version
+			if model != nil {
+				modelVersion = model.Version
+			} else if version == "" || version == "latest" {
+				// Try to extract from manifest or path
+				modelVersion = "latest"
+			}
+
 			fmt.Printf("✅ Model registered with MLOS Core\n")
-			fmt.Printf("   Model ID: %s/%s@%s\n", namespace, name, model.Version)
+			fmt.Printf("   Model ID: %s/%s@%s\n", namespace, name, modelVersion)
 			fmt.Printf("   Framework: %s\n", manifestObj.Spec.Framework.Name)
 			fmt.Printf("   Ready for kernel-level execution\n")
 			return nil

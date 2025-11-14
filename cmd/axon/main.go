@@ -37,6 +37,7 @@ func main() {
 	rootCmd.AddCommand(listCmd())
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(verifyCmd())
+	rootCmd.AddCommand(publishCmd())
 	rootCmd.AddCommand(registerCmd())
 	rootCmd.AddCommand(cacheCmd())
 	rootCmd.AddCommand(configCmd())
