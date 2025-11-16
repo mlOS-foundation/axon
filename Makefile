@@ -129,4 +129,28 @@ create-pr: validate-pr ## Create PR with automatic validation (use: make create-
 	fi
 	@./scripts/create-pr.sh --title "$(TITLE)" --body "$(BODY)" $(if $(DRAFT),--draft) $(if $(SKIP_VALIDATION),--skip-validation)
 
+# Docker targets for ONNX conversion
+docker-build-converter: ## Build Docker image for ONNX conversion
+	@echo "🐳 Building Docker image for ONNX conversion..."
+	@if [ ! -f docker/Dockerfile.converter ]; then \
+		echo "❌ Error: docker/Dockerfile.converter not found"; \
+		exit 1; \
+	fi
+	@docker build -f docker/Dockerfile.converter -t axon-converter:latest .
+	@echo "✅ Docker image built: axon-converter:latest"
+
+docker-push-converter: docker-build-converter ## Build and push Docker image to registry
+	@echo "📤 Pushing Docker image to registry..."
+	@docker tag axon-converter:latest ghcr.io/mlOS-foundation/axon-converter:latest
+	@docker push ghcr.io/mlOS-foundation/axon-converter:latest
+	@echo "✅ Docker image pushed to registry"
+
+docker-test-converter: docker-build-converter ## Test Docker converter image
+	@echo "🧪 Testing Docker converter image..."
+	@docker run --rm axon-converter:latest python3 --version
+	@docker run --rm axon-converter:latest python3 -c "import torch; print('PyTorch:', torch.__version__)"
+	@docker run --rm axon-converter:latest python3 -c "import transformers; print('Transformers:', transformers.__version__)"
+	@docker run --rm axon-converter:latest python3 -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)"
+	@echo "✅ Docker converter image test passed"
+
 .DEFAULT_GOAL := help

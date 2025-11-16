@@ -1,0 +1,50 @@
+# Multi-Framework ONNX Converter Docker Image
+# This image contains all Python dependencies needed for ONNX conversion
+# across all supported repositories (Hugging Face, PyTorch Hub, TensorFlow Hub, ModelScope)
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install all Python ML frameworks for ONNX conversion
+# This covers all default repositories supported by Axon
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    # PyTorch ecosystem (for Hugging Face, PyTorch Hub)
+    torch>=2.0.0 \
+    transformers>=4.30.0 \
+    # TensorFlow ecosystem (for TensorFlow Hub)
+    tensorflow>=2.13.0 \
+    tf2onnx>=1.15.0 \
+    # ModelScope (for ModelScope repository)
+    modelscope>=1.9.0 \
+    # ONNX ecosystem (for validation and conversion)
+    onnx>=1.14.0 \
+    onnxruntime>=1.18.0 \
+    # Utilities
+    numpy>=1.24.0 \
+    protobuf>=4.21.0
+
+# Create conversion scripts directory
+WORKDIR /axon/scripts
+
+# Copy conversion scripts (will be added in implementation)
+# COPY scripts/conversion/ .
+
+# Set working directory for model conversion
+WORKDIR /axon/cache
+
+# Default entrypoint (scripts will be called explicitly)
+ENTRYPOINT ["python3"]
+
+# Metadata
+LABEL org.opencontainers.image.title="Axon ONNX Converter"
+LABEL org.opencontainers.image.description="Docker image for ONNX model conversion with all ML frameworks"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/mlOS-foundation/axon"
+
