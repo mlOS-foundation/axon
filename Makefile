@@ -118,7 +118,15 @@ ci: fmt-check vet lint test ## Run all CI checks
 
 validate: fmt-check vet lint test ## Alias for ci
 
-validate-pr: ## Run all validation checks before PR (fmt, vet, lint, test, build)
+validate-pr: install-tools ## Run all validation checks before PR (fmt, vet, lint, test, build)
 	@./validate-pr.sh
+
+create-pr: validate-pr ## Create PR with automatic validation (use: make create-pr TITLE="..." BODY="...")
+	@echo "✅ Validation passed! Creating PR..."
+	@if [ -z "$(TITLE)" ]; then \
+		echo "❌ Error: TITLE is required. Usage: make create-pr TITLE=\"...\" BODY=\"...\""; \
+		exit 1; \
+	fi
+	@./scripts/create-pr.sh --title "$(TITLE)" --body "$(BODY)" $(if $(DRAFT),--draft) $(if $(SKIP_VALIDATION),--skip-validation)
 
 .DEFAULT_GOAL := help

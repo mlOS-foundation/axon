@@ -76,13 +76,17 @@ func extractPackage(packagePath, destDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open package: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	gzReader, err := gzip.NewReader(file)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() {
+		_ = gzReader.Close()
+	}()
 
 	tarReader := tar.NewReader(gzReader)
 
@@ -113,10 +117,10 @@ func extractPackage(packagePath, destDir string) error {
 			}
 
 			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+				_ = outFile.Close()
 				return fmt.Errorf("failed to extract file: %w", err)
 			}
-			outFile.Close()
+			_ = outFile.Close()
 		}
 	}
 
@@ -130,7 +134,9 @@ func rebuildPackageWithONNX(sourceDir, packagePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create package builder: %w", err)
 	}
-	defer builder.Cleanup()
+	defer func() {
+		_ = builder.Cleanup()
+	}()
 
 	// Add all files from source directory (including model.onnx)
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {

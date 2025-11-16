@@ -67,7 +67,9 @@ func DownloadPreConvertedONNX(ctx context.Context, namespace, modelID, outputPat
 			}
 			continue
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		// Create output directory if needed
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
@@ -79,7 +81,9 @@ func DownloadPreConvertedONNX(ctx context.Context, namespace, modelID, outputPat
 		if err != nil {
 			return false, fmt.Errorf("failed to create output file: %w", err)
 		}
-		defer outFile.Close()
+		defer func() {
+			_ = outFile.Close()
+		}()
 
 		if _, err := io.Copy(outFile, resp.Body); err != nil {
 			_ = os.Remove(outputPath)
@@ -144,8 +148,8 @@ func ConvertToONNX(ctx context.Context, modelPath, framework, namespace, modelID
 	var pythonCmd string
 
 	switch {
-	case frameworkLower == "huggingface" || frameworkLower == "transformers" || 
-		 frameworkLower == "pytorch" || frameworkLower == "torch":
+	case frameworkLower == "huggingface" || frameworkLower == "transformers" ||
+		frameworkLower == "pytorch" || frameworkLower == "torch":
 		// Hugging Face / PyTorch conversion
 		if frameworkLower == "huggingface" || frameworkLower == "transformers" {
 			// Extract model name from path for Hugging Face models
@@ -288,20 +292,20 @@ except Exception as e:
 func extractModelNameFromPath(path string) string {
 	// Remove trailing slashes
 	path = strings.TrimSuffix(path, "/")
-	
+
 	// Split by path separator
 	parts := strings.Split(path, string(filepath.Separator))
 	if len(parts) < 2 {
 		return ""
 	}
-	
+
 	// Get second-to-last part (model name)
 	// Path structure: .../namespace/model-name/version
 	// We want model-name
 	if len(parts) >= 2 {
 		return parts[len(parts)-2]
 	}
-	
+
 	return ""
 }
 
@@ -310,9 +314,9 @@ func CanConvert(framework string) bool {
 	if framework == "" {
 		return false
 	}
-	
+
 	frameworkLower := strings.ToLower(framework)
-	
+
 	// Frameworks that can be converted to ONNX
 	supported := []string{
 		"pytorch", "torch",
@@ -320,13 +324,12 @@ func CanConvert(framework string) bool {
 		"huggingface", "transformers",
 		"onnx", // Already ONNX
 	}
-	
+
 	for _, fw := range supported {
 		if frameworkLower == fw {
 			return true
 		}
 	}
-	
+
 	return false
 }
-
