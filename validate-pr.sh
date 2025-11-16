@@ -1,147 +1,174 @@
 #!/bin/bash
-#
-# Pre-PR Validation Script
-# Runs lint, vet, and tests before pushing PR updates
-#
+# validate-pr.sh - Run all validations before creating a PR
+# This script runs the same checks as CI to catch issues early
 
-set -e
+set -e  # Exit on error
 
-# Colors
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Track failures
+# Track if any check fails
 FAILED=0
 
-echo "=========================================="
-echo "Pre-PR Validation"
-echo "=========================================="
+echo "🔍 Running PR validation checks..."
 echo ""
 
-# 1. Format check
-echo -e "${BLUE}1. Checking code formatting (go fmt)...${NC}"
-if [ -n "$(gofmt -s -l . | grep -v vendor | head -20)" ]; then
-    echo -e "${RED}❌ Code is not formatted. Run 'go fmt ./...'${NC}"
-    gofmt -s -d . | head -50
+# Function to print success
+success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+# Function to print error
+error() {
+    echo -e "${RED}❌ $1${NC}"
     FAILED=1
+}
+
+# Function to print warning
+warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+# 1. Check Go version
+echo "1️⃣  Checking Go version..."
+GO_VERSION=$(go version | awk '{print $3}')
+echo "   Go version: $GO_VERSION"
+if [[ "$GO_VERSION" == go1.21* ]] || [[ "$GO_VERSION" == go1.22* ]] || [[ "$GO_VERSION" == go1.23* ]]; then
+    success "Go version check"
 else
-    echo -e "${GREEN}✅ Code formatting: OK${NC}"
+    warning "Go version $GO_VERSION may not match CI (expects 1.21+)"
 fi
 echo ""
 
-# 2. Run go fmt to auto-fix
-echo -e "${BLUE}2. Running go fmt to auto-fix formatting...${NC}"
-go fmt ./...
-echo -e "${GREEN}✅ Formatting applied${NC}"
-echo ""
-
-# 3. Vet check
-echo -e "${BLUE}3. Running go vet...${NC}"
-if ! go vet ./...; then
-    echo -e "${RED}❌ go vet failed${NC}"
-    FAILED=1
+# 2. Download dependencies
+echo "2️⃣  Downloading dependencies..."
+if go mod download; then
+    success "Dependencies downloaded"
 else
-    echo -e "${GREEN}✅ go vet: OK${NC}"
+    error "Failed to download dependencies"
+    exit 1
 fi
 echo ""
 
-# 4. Install CI tools if needed
-echo -e "${BLUE}4. Ensuring CI tools are installed...${NC}"
+# 3. Tidy go.mod
+echo "3️⃣  Tidying go.mod..."
+if go mod tidy; then
+    success "go.mod tidied"
+else
+    error "Failed to tidy go.mod"
+    exit 1
+fi
 
+# Check if go.mod or go.sum changed
+if ! git diff --quiet go.mod go.sum 2>/dev/null; then
+    warning "go.mod or go.sum has uncommitted changes"
+    echo "   Run: git add go.mod go.sum && git commit -m 'chore: update dependencies'"
+    FAILED=1
+fi
+echo ""
+
+# 4. Check code formatting
+echo "4️⃣  Checking code formatting..."
+UNFORMATTED=$(gofmt -s -l . | grep -v vendor | head -20)
+if [ -z "$UNFORMATTED" ]; then
+    success "Code formatting: OK"
+else
+    error "Code is not formatted. Run 'go fmt ./...' or 'make fmt'"
+    echo "$UNFORMATTED" | while read -r line; do
+        echo "   $line"
+    done
+    FAILED=1
+fi
+echo ""
+
+# 5. Run go vet
+echo "5️⃣  Running go vet..."
+if go vet ./...; then
+    success "go vet: OK"
+else
+    error "go vet failed"
+    FAILED=1
+fi
+echo ""
+
+# 6. Run golangci-lint
+echo "6️⃣  Running golangci-lint..."
 # Ensure GOPATH/bin is in PATH
-export PATH="$(go env GOPATH)/bin:${PATH}"
+GOPATH_BIN="$(go env GOPATH)/bin"
+export PATH="${GOPATH_BIN}:${PATH}"
 
-# Install golangci-lint if not available
-if ! command -v golangci-lint &> /dev/null; then
-    echo -e "${YELLOW}⚠️  golangci-lint not found, installing v1.64.8...${NC}"
+if ! command -v golangci-lint > /dev/null; then
+    warning "golangci-lint not found. Installing..."
     if go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8; then
-        echo -e "${GREEN}✅ golangci-lint installed${NC}"
-        # Verify it's now in PATH
-        export PATH="$(go env GOPATH)/bin:${PATH}"
-        if ! command -v golangci-lint &> /dev/null; then
-            echo -e "${YELLOW}⚠️  golangci-lint installed but not in PATH. Add $(go env GOPATH)/bin to your PATH${NC}"
-            echo -e "${YELLOW}   Current PATH: ${PATH}${NC}"
-        fi
+        success "golangci-lint installed"
+        # Re-export PATH after installation
+        export PATH="${GOPATH_BIN}:${PATH}"
     else
-        echo -e "${RED}❌ Failed to install golangci-lint${NC}"
+        error "Failed to install golangci-lint"
+        echo "   Run: make install-tools"
+        FAILED=1
+        echo ""
+    fi
+fi
+
+# Try to run golangci-lint if available
+if command -v golangci-lint > /dev/null; then
+    if golangci-lint run --timeout=5m ./...; then
+        success "golangci-lint: OK"
+    else
+        error "golangci-lint failed"
         FAILED=1
     fi
 else
-    echo -e "${GREEN}✅ golangci-lint already installed${NC}"
-fi
-
-# Install goimports if not available
-if ! command -v goimports &> /dev/null; then
-    echo -e "${YELLOW}⚠️  goimports not found, installing...${NC}"
-    if go install golang.org/x/tools/cmd/goimports@latest; then
-        echo -e "${GREEN}✅ goimports installed${NC}"
-        export PATH="$(go env GOPATH)/bin:${PATH}"
-    else
-        echo -e "${YELLOW}⚠️  Failed to install goimports (non-critical)${NC}"
-    fi
-else
-    echo -e "${GREEN}✅ goimports already installed${NC}"
+    warning "golangci-lint not available - skipping (install with: make install-tools)"
 fi
 echo ""
 
-# 5. Lint check
-echo -e "${BLUE}5. Running golangci-lint...${NC}"
-if command -v golangci-lint &> /dev/null; then
-    # Use same config as CI (.golangci.yml)
-    if ! golangci-lint run --timeout=5m; then
-        echo -e "${RED}❌ golangci-lint failed${NC}"
-        echo -e "${YELLOW}💡 Run 'golangci-lint run' to see detailed errors${NC}"
-        FAILED=1
-    else
-        echo -e "${GREEN}✅ golangci-lint: OK${NC}"
-    fi
-else
-    echo -e "${RED}❌ golangci-lint not available. Run 'make install-tools' to install it.${NC}"
-    FAILED=1
-fi
-echo ""
-
-# 6. Run tests
-echo -e "${BLUE}6. Running tests...${NC}"
-if ! go test -v -coverprofile=coverage.out ./...; then
-    echo -e "${RED}❌ Tests failed${NC}"
-    FAILED=1
-else
-    echo -e "${GREEN}✅ Tests: OK${NC}"
+# 7. Run tests
+echo "7️⃣  Running tests..."
+if go test -v -coverprofile=coverage.out ./...; then
+    success "Tests: OK"
     
-    # Show coverage if available
+    # Check coverage if file exists
     if [ -f coverage.out ]; then
         COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
-        echo -e "${BLUE}   Coverage: ${COVERAGE}${NC}"
+        echo "   Coverage: $COVERAGE"
     fi
+else
+    error "Tests failed"
+    FAILED=1
 fi
 echo ""
 
-# 7. Build check
-echo -e "${BLUE}7. Building binary...${NC}"
-if ! go build -o /tmp/axon-test ./cmd/axon; then
-    echo -e "${RED}❌ Build failed${NC}"
-    FAILED=1
+# 8. Build
+echo "8️⃣  Building binary..."
+if go build -o /tmp/axon ./cmd/axon; then
+    success "Build: OK"
+    rm -f /tmp/axon
 else
-    echo -e "${GREEN}✅ Build: OK${NC}"
-    rm -f /tmp/axon-test
+    error "Build failed"
+    FAILED=1
 fi
 echo ""
 
 # Summary
-echo "=========================================="
-echo "Validation Summary"
-echo "=========================================="
-echo ""
-
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ $FAILED -eq 0 ]; then
-    echo -e "${GREEN}✅ All checks passed! Ready to push PR.${NC}"
+    echo -e "${GREEN}✅ All PR validation checks passed!${NC}"
+    echo ""
+    echo "You can now create your PR with confidence."
     exit 0
 else
-    echo -e "${RED}❌ Some checks failed. Please fix issues before pushing PR.${NC}"
+    echo -e "${RED}❌ Some PR validation checks failed${NC}"
+    echo ""
+    echo "Please fix the issues above before creating a PR."
+    echo ""
+    echo "Quick fixes:"
+    echo "  - Format code: make fmt"
+    echo "  - Run tests: make test"
+    echo "  - Run all checks: make ci"
     exit 1
 fi
-
