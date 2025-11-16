@@ -33,8 +33,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Create conversion scripts directory
 WORKDIR /axon/scripts
 
-# Copy conversion scripts (will be added in implementation)
-# COPY scripts/conversion/ .
+# Copy conversion scripts
+COPY scripts/conversion/ /axon/scripts/
+
+# Make scripts executable
+RUN chmod +x /axon/scripts/*.py
 
 # Set working directory for model conversion
 WORKDIR /axon/cache
