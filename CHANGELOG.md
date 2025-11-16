@@ -10,43 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 - Enhanced caching and optimization
 - Model versioning and A/B testing
-
-## [1.5.0] - 2024-11-16
-
-### Added
-- **ONNX Conversion During Install**: Automatic ONNX conversion during `axon install` for MLOS Core compatibility (#21)
-  - Pure Go-first approach: Downloads pre-converted ONNX files from repositories when available (no Python required)
-  - Optional Python conversion: Falls back to Python-based conversion if pre-converted ONNX not available
-  - Graceful degradation: Skips conversion if Python unavailable (models still work with framework-specific plugins)
-  - Zero mandatory dependencies: Axon works without Python, conversion is optional enhancement
-  - ONNX files included in MPF packages: `model.onnx` automatically added to `.axon` packages
-  - Package extraction and rebuilding: Extracts packages, adds ONNX files, and rebuilds packages seamlessly
-- **ONNX Converter Module**: New `internal/converter/onnx.go` package
-  - `DownloadPreConvertedONNX()`: Pure Go HTTP download of pre-converted ONNX from repositories
-  - `ConvertToONNX()`: Unified conversion interface with pure Go first, Python fallback
-  - `CanConvert()`: Framework compatibility checking
-  - Supports Hugging Face, PyTorch, and TensorFlow models
-- **Package Extraction**: Added `extractPackage()` function to extract `.axon` tar.gz packages
-- **Package Rebuilding**: Added `rebuildPackageWithONNX()` to rebuild packages with ONNX files included
-
-### Changed
-- **Install Flow**: Enhanced `axon install` to automatically:
-  1. Download and cache model package
-  2. Extract package to cache directory
-  3. Attempt ONNX conversion (pure Go first, Python optional)
-  4. Rebuild package with ONNX file included
-  5. Store complete MPF package with ONNX for MLOS Core
-- **Architecture Alignment**: Aligned with patent US-63/861,527 architecture
-  - Axon: Model delivery + conversion layer (handles ONNX conversion during install)
-  - MLOS Core: Pure execution layer (uses pre-converted ONNX files from MPF packages)
-  - Complete separation of concerns: MLOS Core has zero Python dependencies
-
-### Benefits
-- **Zero Mandatory Dependencies**: Axon works without Python (pure Go when repositories provide ONNX)
-- **Better User Experience**: Automatic ONNX conversion during install, no manual steps required
-- **MLOS Core Compatibility**: MPF packages include ONNX files ready for MLOS Core execution
-- **Graceful Degradation**: Models work even without ONNX conversion (framework-specific plugins available)
-- **Patent-Aligned**: Complete decoupling of MLOS Core from conversion logic and Python dependencies
+- MLOS Core Runtime integration
 
 ## [1.4.1] - 2024-11-12
 

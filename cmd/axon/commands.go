@@ -2,8 +2,6 @@
 package main
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +14,6 @@ import (
 
 	"github.com/mlOS-foundation/axon/internal/cache"
 	"github.com/mlOS-foundation/axon/internal/config"
-	"github.com/mlOS-foundation/axon/internal/converter"
 	"github.com/mlOS-foundation/axon/internal/manifest"
 	"github.com/mlOS-foundation/axon/internal/registry/builtin"
 	"github.com/mlOS-foundation/axon/internal/registry/core"
@@ -68,111 +65,6 @@ func parseModelSpec(spec string) (namespace, name, version string) {
 	}
 
 	return namespace, name, version
-}
-
-// extractPackage extracts a .axon package (tar.gz) to the destination directory
-func extractPackage(packagePath, destDir string) error {
-	file, err := os.Open(packagePath)
-	if err != nil {
-		return fmt.Errorf("failed to open package: %w", err)
-	}
-	defer file.Close()
-
-	gzReader, err := gzip.NewReader(file)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzReader.Close()
-
-	tarReader := tar.NewReader(gzReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar: %w", err)
-		}
-
-		targetPath := filepath.Join(destDir, header.Name)
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
-			if err != nil {
-				return fmt.Errorf("failed to create file: %w", err)
-			}
-
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
-				return fmt.Errorf("failed to extract file: %w", err)
-			}
-			outFile.Close()
-		}
-	}
-
-	return nil
-}
-
-// rebuildPackageWithONNX rebuilds the .axon package including the ONNX file
-func rebuildPackageWithONNX(sourceDir, packagePath string) error {
-	// Create new package builder
-	builder, err := core.NewPackageBuilder()
-	if err != nil {
-		return fmt.Errorf("failed to create package builder: %w", err)
-	}
-	defer builder.Cleanup()
-
-	// Add all files from source directory (including model.onnx)
-	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip the package file itself
-		if info.Name() == filepath.Base(packagePath) {
-			return nil
-		}
-
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(sourceDir, path)
-			if err != nil {
-				return err
-			}
-			return builder.AddFile(path, relPath)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to add files to package: %w", err)
-	}
-
-	// Build new package (temporary location)
-	tmpPackage := packagePath + ".tmp"
-	if err := builder.Build(tmpPackage); err != nil {
-		return fmt.Errorf("failed to build package: %w", err)
-	}
-
-	// Replace old package with new one
-	if err := os.Rename(tmpPackage, packagePath); err != nil {
-		// If rename fails, try copy
-		if err := copyFile(tmpPackage, packagePath); err != nil {
-			_ = os.Remove(tmpPackage)
-			return fmt.Errorf("failed to replace package: %w", err)
-		}
-		_ = os.Remove(tmpPackage)
-	}
-
-	return nil
 }
 
 func initCmd() *cobra.Command {
@@ -446,37 +338,6 @@ func installCmd() *cobra.Command {
 				_ = os.Remove(tmpFile) // Clean up temp file after copy
 			}
 			fmt.Printf("✓ Package moved to cache: %s\n", cachePackagePath)
-
-			// Extract package to cache directory for ONNX conversion
-			// The package is a tar.gz file - we need to extract it
-			if err := extractPackage(cachePackagePath, cachePath); err != nil {
-				return fmt.Errorf("failed to extract package: %w", err)
-			}
-
-			// Attempt ONNX conversion (pure Go first, Python optional)
-			// This adds model.onnx to the extracted files
-			onnxPath := filepath.Join(cachePath, "model.onnx")
-			modelID := fmt.Sprintf("%s/%s", namespace, name)
-			if namespace == "hf" {
-				// For Hugging Face, use just the model name
-				modelID = name
-			}
-
-			converted, err := converter.ConvertToONNX(cmd.Context(), cachePath, manifest.Spec.Framework.Name, namespace, modelID, onnxPath)
-			if err != nil {
-				// Conversion error - log but don't fail (model still works without ONNX)
-				fmt.Printf("⚠️  ONNX conversion failed: %v\n", err)
-				fmt.Printf("   Model will work with framework-specific plugins\n")
-			} else if converted {
-				fmt.Printf("✅ ONNX conversion successful: %s\n", onnxPath)
-				// Rebuild package with ONNX file included
-				if err := rebuildPackageWithONNX(cachePath, cachePackagePath); err != nil {
-					fmt.Printf("⚠️  Failed to rebuild package with ONNX: %v\n", err)
-					fmt.Printf("   ONNX file is available in cache directory\n")
-				} else {
-					fmt.Printf("✅ Package rebuilt with ONNX file included\n")
-				}
-			}
 
 			fmt.Printf("\n✓ Successfully propagated %s/%s@%s\n", namespace, name, version)
 			return nil
