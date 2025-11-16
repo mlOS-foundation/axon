@@ -90,6 +90,13 @@ func extractPackage(packagePath, destDir string) error {
 
 	tarReader := tar.NewReader(gzReader)
 
+	// Resolve and clean destination directory to prevent path traversal
+	destDir, err = filepath.Abs(destDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination directory: %w", err)
+	}
+	destDir = filepath.Clean(destDir)
+
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
@@ -99,7 +106,24 @@ func extractPackage(packagePath, destDir string) error {
 			return fmt.Errorf("failed to read tar: %w", err)
 		}
 
-		targetPath := filepath.Join(destDir, header.Name)
+		// Sanitize archive entry name to prevent Zip Slip (path traversal) vulnerability
+		// Clean the path and ensure it doesn't contain ".." that would escape destDir
+		entryName := filepath.Clean(header.Name)
+		if strings.HasPrefix(entryName, "..") || strings.Contains(entryName, "..") {
+			return fmt.Errorf("invalid archive entry: path traversal detected in %s", header.Name)
+		}
+
+		// Join with destination directory
+		targetPath := filepath.Join(destDir, entryName)
+
+		// Verify the resolved path is still within destDir (prevent path traversal)
+		targetPath, err = filepath.Abs(targetPath)
+		if err != nil {
+			return fmt.Errorf("failed to resolve target path: %w", err)
+		}
+		if !strings.HasPrefix(targetPath, destDir) {
+			return fmt.Errorf("invalid archive entry: path traversal detected - %s would escape destination directory", header.Name)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
