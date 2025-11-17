@@ -11,6 +11,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [1.6.0] - 2024-11-16
+
+### Added
+- **Docker-Based ONNX Conversion**: Zero Python dependencies on host machine (#23)
+  - Docker containers handle all Python ML framework dependencies
+  - Multi-framework Docker image with PyTorch, TensorFlow, Transformers, and ONNX pre-installed
+  - Version-independent volume mapping: Host Axon cache mapped to container
+  - Repository-driven dependencies: Docker image selection based on supported repositories
+  - Graceful degradation: Falls back to local Python if Docker unavailable
+  - Automated CI/CD: Docker image automatically built and published on merge
+  - E2E testing: Comprehensive workflow tests for Docker integration
+- **Docker Converter Module**: New `internal/converter/docker.go` package
+  - `ConvertToONNXWithDocker()`: Docker-based conversion implementation
+  - `IsDockerAvailable()`: Docker availability checking
+  - `EnsureDockerImage()`: Automatic Docker image pulling
+  - `getDockerImageForRepository()`: Repository-specific image selection
+- **Conversion Scripts**: Python scripts for framework-specific conversion
+  - `convert_huggingface.py`: Hugging Face model conversion
+  - `convert_pytorch.py`: PyTorch Hub model conversion
+  - `convert_tensorflow.py`: TensorFlow Hub model conversion
+- **Docker Image**: `ghcr.io/mlOS-foundation/axon-converter:latest`
+  - Pre-configured with all ML frameworks
+  - Multi-architecture support (linux/amd64, linux/arm64)
+  - Automated build and publish workflow
+- **CI/CD Integration**: Automated Docker image publishing
+  - Builds and publishes on merge to main
+  - E2E testing workflow for Docker converter
+  - Multi-architecture builds
+
+### Changed
+- **ONNX Conversion Flow**: Enhanced to try Docker first, then local Python
+  - Step 1: Download pre-converted ONNX (pure Go, no dependencies)
+  - Step 2: Try Docker-based conversion (zero Python on host)
+  - Step 3: Fall back to local Python conversion (if available)
+  - Step 4: Graceful skip if all methods unavailable
+- **User Experience**: Simplified distribution with zero Python installation required
+  - Users can run `axon install` without any Python setup
+  - Docker image automatically pulled on first use
+  - Better isolation and reproducibility
+
+### Benefits
+- **Zero Python on Host**: No Python installation required for ONNX conversion
+- **Simplified Distribution**: Easier for users, no dependency management
+- **Better Isolation**: Docker containers provide clean, reproducible environments
+- **Automated Maintenance**: CI/CD handles Docker image updates automatically
+- **Multi-Architecture**: Supports both amd64 and arm64 platforms
+
 ## [1.5.0] - 2024-11-16
 
 ### Added
