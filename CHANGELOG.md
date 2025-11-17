@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [1.7.0] - 2024-11-17
+
+### Added
+- **List Command Format Flag**: Added `--format` flag to `axon list` command (#24)
+  - `--format default`: Original format with header and indentation (default behavior)
+  - `--format names`: Simple namespace/name format (one per line, no version) - perfect for piping
+  - `--format json`: JSON array output for programmatic use
+  - Enables easy uninstall of all models: `axon list --format names | xargs -I {} axon uninstall {}`
+  - JSON output for scripting and automation
+  - Backward compatible (default format unchanged)
+- **Build-Local Target**: Added `make build-local` target for local installation without sudo
+  - Installs binaries to `~/.local/bin` (no sudo required)
+  - Automatically creates `~/.local/bin` if needed
+  - Warns if `~/.local/bin` is not in PATH
+  - Provides instructions for adding to PATH
+  - Enables easy local testing and validation
+
+### Benefits
+- **Easy model management**: Pipe list output directly to uninstall command
+- **Scripting support**: JSON output enables programmatic use
+- **Local development**: Build and test without system-wide installation
+- **User-friendly**: No sudo required for local installation
+
 ## [1.6.0] - 2024-11-16
 
 ### Added
