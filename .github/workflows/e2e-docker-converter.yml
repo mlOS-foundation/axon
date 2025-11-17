@@ -46,6 +46,15 @@ jobs:
           
           echo "✅ All E2E tests passed"
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
       - name: Test Axon Docker integration
         run: |
           echo "🧪 Testing Axon Docker integration..."
@@ -58,4 +67,5 @@ jobs:
           go test -v ./internal/converter/... -run TestDocker || echo "⚠️  Docker tests not yet implemented (expected)"
           
           echo "✅ Axon Docker integration test complete"
+
 
