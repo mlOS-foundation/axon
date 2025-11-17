@@ -127,17 +127,42 @@ func ConvertToONNX(ctx context.Context, modelPath, framework, namespace, modelID
 		}
 	}
 
-	// Step 2: Fall back to Python-based conversion (optional, graceful degradation)
+	// Step 2: Fall back to conversion (Docker first, then local Python)
 	if modelPath == "" || framework == "" || outputPath == "" {
 		return false, fmt.Errorf("modelPath, framework, and outputPath are required")
 	}
 
+	// Try Docker-based conversion first (no Python needed on host)
+	if IsDockerAvailable() {
+		// Ensure Docker image is available
+		if err := EnsureDockerImage(ctx, namespace); err != nil {
+			fmt.Printf("⚠️  Docker image not available: %v\n", err)
+			fmt.Printf("   💡 Falling back to local Python (if available)\n")
+		} else {
+			// Try Docker conversion
+			converted, err := ConvertToONNXWithDocker(ctx, modelPath, framework, namespace, modelID, outputPath)
+			if err == nil && converted {
+				return true, nil // Success with Docker!
+			}
+			// If Docker conversion fails, fall through to local Python
+			if err != nil {
+				fmt.Printf("⚠️  Docker conversion failed: %v\n", err)
+				fmt.Printf("   💡 Falling back to local Python (if available)\n")
+			}
+		}
+	}
+
+	// Step 3: Fall back to local Python-based conversion (if available)
 	// Check if Python 3 is available (optional dependency)
 	if _, err := exec.LookPath("python3"); err != nil {
 		// Python not available - graceful degradation
 		fmt.Printf("⚠️  Python3 not found - skipping ONNX conversion\n")
 		fmt.Printf("   💡 Model will work with framework-specific plugins\n")
-		fmt.Printf("   💡 To enable ONNX conversion, install Python 3 and: pip install transformers torch\n")
+		if !IsDockerAvailable() {
+			fmt.Printf("   💡 To enable ONNX conversion, either:\n")
+			fmt.Printf("      - Install Docker: https://docs.docker.com/get-docker/\n")
+			fmt.Printf("      - Or install Python 3 and: pip install transformers torch\n")
+		}
 		return false, nil // Not an error - just skipped
 	}
 
