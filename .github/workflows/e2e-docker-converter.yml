@@ -31,18 +31,18 @@ jobs:
         run: |
           echo "🧪 Testing Docker converter image..."
           
-          # Test Python and dependencies
-          docker run --rm axon-converter:test python3 --version
-          docker run --rm axon-converter:test python3 -c "import torch; print('✅ PyTorch:', torch.__version__)"
-          docker run --rm axon-converter:test python3 -c "import transformers; print('✅ Transformers:', transformers.__version__)"
-          docker run --rm axon-converter:test python3 -c "import tensorflow as tf; print('✅ TensorFlow:', tf.__version__)"
-          docker run --rm axon-converter:test python3 -c "import onnx; print('✅ ONNX:', onnx.__version__)"
+          # Test Python and dependencies (override entrypoint for testing)
+          docker run --rm --entrypoint="" axon-converter:test python3 --version
+          docker run --rm --entrypoint="" axon-converter:test python3 -c "import torch; print('✅ PyTorch:', torch.__version__)"
+          docker run --rm --entrypoint="" axon-converter:test python3 -c "import transformers; print('✅ Transformers:', transformers.__version__)"
+          docker run --rm --entrypoint="" axon-converter:test python3 -c "import tensorflow as tf; print('✅ TensorFlow:', tf.__version__)"
+          docker run --rm --entrypoint="" axon-converter:test python3 -c "import onnx; print('✅ ONNX:', onnx.__version__)"
           
           # Test conversion scripts exist and are executable
-          docker run --rm axon-converter:test ls -la /axon/scripts/
-          docker run --rm axon-converter:test test -f /axon/scripts/convert_huggingface.py && echo "✅ convert_huggingface.py exists"
-          docker run --rm axon-converter:test test -f /axon/scripts/convert_pytorch.py && echo "✅ convert_pytorch.py exists"
-          docker run --rm axon-converter:test test -f /axon/scripts/convert_tensorflow.py && echo "✅ convert_tensorflow.py exists"
+          docker run --rm --entrypoint="" axon-converter:test ls -la /axon/scripts/
+          docker run --rm --entrypoint="" axon-converter:test test -f /axon/scripts/convert_huggingface.py && echo "✅ convert_huggingface.py exists"
+          docker run --rm --entrypoint="" axon-converter:test test -f /axon/scripts/convert_pytorch.py && echo "✅ convert_pytorch.py exists"
+          docker run --rm --entrypoint="" axon-converter:test test -f /axon/scripts/convert_tensorflow.py && echo "✅ convert_tensorflow.py exists"
           
           echo "✅ All E2E tests passed"
 

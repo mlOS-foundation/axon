@@ -71,14 +71,14 @@ jobs:
       - name: Test Docker image
         if: github.event_name != 'pull_request'
         run: |
-          # Test that the image works and has all dependencies
+          # Test that the image works and has all dependencies (override entrypoint for testing)
           IMAGE_TAG="ghcr.io/mlOS-foundation/axon-converter:latest"
-          docker run --rm $IMAGE_TAG python3 --version
-          docker run --rm $IMAGE_TAG python3 -c "import torch; print('PyTorch:', torch.__version__)"
-          docker run --rm $IMAGE_TAG python3 -c "import transformers; print('Transformers:', transformers.__version__)"
-          docker run --rm $IMAGE_TAG python3 -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)"
-          docker run --rm $IMAGE_TAG python3 -c "import onnx; print('ONNX:', onnx.__version__)"
-          docker run --rm $IMAGE_TAG test -f /axon/scripts/convert_huggingface.py && echo "✅ Conversion scripts present"
+          docker run --rm --entrypoint="" $IMAGE_TAG python3 --version
+          docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import torch; print('PyTorch:', torch.__version__)"
+          docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import transformers; print('Transformers:', transformers.__version__)"
+          docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)"
+          docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import onnx; print('ONNX:', onnx.__version__)"
+          docker run --rm --entrypoint="" $IMAGE_TAG test -f /axon/scripts/convert_huggingface.py && echo "✅ Conversion scripts present"
           echo "✅ All dependencies verified"
 
       - name: Image digest

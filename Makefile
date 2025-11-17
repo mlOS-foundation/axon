@@ -147,10 +147,10 @@ docker-push-converter: docker-build-converter ## Build and push Docker image to 
 
 docker-test-converter: docker-build-converter ## Test Docker converter image
 	@echo "🧪 Testing Docker converter image..."
-	@docker run --rm axon-converter:latest python3 --version
-	@docker run --rm axon-converter:latest python3 -c "import torch; print('PyTorch:', torch.__version__)"
-	@docker run --rm axon-converter:latest python3 -c "import transformers; print('Transformers:', transformers.__version__)"
-	@docker run --rm axon-converter:latest python3 -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)"
+	@docker run --rm --entrypoint="" axon-converter:latest python3 --version
+	@docker run --rm --entrypoint="" axon-converter:latest python3 -c "import torch; print('PyTorch:', torch.__version__)"
+	@docker run --rm --entrypoint="" axon-converter:latest python3 -c "import transformers; print('Transformers:', transformers.__version__)"
+	@docker run --rm --entrypoint="" axon-converter:latest python3 -c "import tensorflow as tf; print('TensorFlow:', tf.__version__)"
 	@echo "✅ Docker converter image test passed"
 
 .DEFAULT_GOAL := help
