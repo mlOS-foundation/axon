@@ -92,6 +92,19 @@ install: build ## Install to $GOPATH/bin
 	@go install ./cmd/axon
 	@echo "✓ Installed $(BINARY_NAME)"
 
+build-local: build ## Build and install to ~/.local/bin (no sudo required)
+	@echo "Installing $(BINARY_NAME) to ~/.local/bin..."
+	@mkdir -p $$HOME/.local/bin
+	@cp $(BUILD_DIR)/$(BINARY_NAME) $$HOME/.local/bin/$(BINARY_NAME)
+	@chmod +x $$HOME/.local/bin/$(BINARY_NAME)
+	@echo "✓ Installed $(BINARY_NAME) to $$HOME/.local/bin/$(BINARY_NAME)"
+	@if ! echo "$$PATH" | grep -q "$$HOME/.local/bin"; then \
+		echo ""; \
+		echo "⚠️  ~/.local/bin is not in your PATH"; \
+		echo "   Add this to your shell config (~/.bashrc, ~/.zshrc, etc.):"; \
+		echo "   export PATH=\"$$HOME/.local/bin:\$$PATH\""; \
+	fi
+
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -rf $(BUILD_DIR)
