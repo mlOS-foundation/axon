@@ -4,6 +4,7 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -515,11 +516,12 @@ func installCmd() *cobra.Command {
 }
 
 func listCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed models",
 		Long:  "List all active pathways (installed models)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			format, _ := cmd.Flags().GetString("format")
 			cacheMgr := cache.NewManager(cfg.CacheDir)
 			models, err := cacheMgr.ListCachedModels()
 			if err != nil {
@@ -527,19 +529,50 @@ func listCmd() *cobra.Command {
 			}
 
 			if len(models) == 0 {
-				fmt.Println("No models installed.")
+				if format == "json" {
+					fmt.Println("[]")
+				} else if format == "names" {
+					// Empty output for names format
+				} else {
+					fmt.Println("No models installed.")
+				}
 				return nil
 			}
 
-			fmt.Println("Active pathways:")
-			fmt.Println()
-			for _, model := range models {
-				fmt.Printf("  %s/%s@%s\n", model.Namespace, model.Name, model.Version)
+			switch format {
+			case "json":
+				// Output as JSON array
+				jsonData, err := json.MarshalIndent(models, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal models: %w", err)
+				}
+				fmt.Println(string(jsonData))
+			case "names":
+				// Output just namespace/name (one per line, no version)
+				// Deduplicate by namespace/name combination
+				seen := make(map[string]bool)
+				for _, model := range models {
+					key := fmt.Sprintf("%s/%s", model.Namespace, model.Name)
+					if !seen[key] {
+						fmt.Printf("%s/%s\n", model.Namespace, model.Name)
+						seen[key] = true
+					}
+				}
+			default:
+				// Default format (original behavior)
+				fmt.Println("Active pathways:")
+				fmt.Println()
+				for _, model := range models {
+					fmt.Printf("  %s/%s@%s\n", model.Namespace, model.Name, model.Version)
+				}
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().StringP("format", "f", "default", "Output format: default, names, or json")
+	return cmd
 }
 
 func uninstallCmd() *cobra.Command {
