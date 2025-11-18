@@ -46,7 +46,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/mlOS-foundation/axon-converter
+          images: ghcr.io/mlos-foundation/axon-converter
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -72,7 +72,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           # Test that the image works and has all dependencies (override entrypoint for testing)
-          IMAGE_TAG="ghcr.io/mlOS-foundation/axon-converter:latest"
+          IMAGE_TAG="ghcr.io/mlos-foundation/axon-converter:latest"
           docker run --rm --entrypoint="" $IMAGE_TAG python3 --version
           docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import torch; print('PyTorch:', torch.__version__)"
           docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import transformers; print('Transformers:', transformers.__version__)"

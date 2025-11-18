@@ -26,7 +26,7 @@ func NewDockerConverter() *DockerConverter {
 	}
 
 	return &DockerConverter{
-		imageName: "axon-converter:latest", // Default multi-framework image
+		imageName: "ghcr.io/mlOS-foundation/axon-converter:latest", // Default multi-framework image
 		cacheDir:  cacheDir,
 	}
 }
@@ -46,10 +46,10 @@ func getDockerImageForRepository(namespace string) string {
 	// Repository-to-image mapping
 	// Can be extended for repository-specific images
 	repositoryImageMap := map[string]string{
-		"hf":      "axon-converter:latest", // Hugging Face (use default for now)
-		"pytorch": "axon-converter:latest", // PyTorch Hub
-		"tfhub":   "axon-converter:latest", // TensorFlow Hub
-		"ms":      "axon-converter:latest", // ModelScope
+		"hf":      "ghcr.io/mlOS-foundation/axon-converter:latest", // Hugging Face (use default for now)
+		"pytorch": "ghcr.io/mlOS-foundation/axon-converter:latest", // PyTorch Hub
+		"tfhub":   "ghcr.io/mlOS-foundation/axon-converter:latest", // TensorFlow Hub
+		"ms":      "ghcr.io/mlOS-foundation/axon-converter:latest", // ModelScope
 	}
 
 	if image, ok := repositoryImageMap[namespace]; ok {
@@ -57,7 +57,7 @@ func getDockerImageForRepository(namespace string) string {
 	}
 
 	// Default to multi-framework image
-	return "axon-converter:latest"
+	return "ghcr.io/mlOS-foundation/axon-converter:latest"
 }
 
 // getConversionScript returns the conversion script name based on framework.

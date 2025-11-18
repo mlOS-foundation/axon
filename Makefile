@@ -165,8 +165,8 @@ docker-build-converter: ## Build Docker image for ONNX conversion
 
 docker-push-converter: docker-build-converter ## Build and push Docker image to registry
 	@echo "📤 Pushing Docker image to registry..."
-	@docker tag axon-converter:latest ghcr.io/mlOS-foundation/axon-converter:latest
-	@docker push ghcr.io/mlOS-foundation/axon-converter:latest
+	@docker tag axon-converter:latest ghcr.io/mlos-foundation/axon-converter:latest
+	@docker push ghcr.io/mlos-foundation/axon-converter:latest
 	@echo "✅ Docker image pushed to registry"
 
 docker-test-converter: docker-build-converter ## Test Docker converter image
