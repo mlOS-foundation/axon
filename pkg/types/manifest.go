@@ -53,8 +53,9 @@ type Framework struct {
 
 // Format describes the model file format
 type Format struct {
-	Type  string      `yaml:"type"`
-	Files []ModelFile `yaml:"files"`
+	Type            string      `yaml:"type"`             // Original format (pytorch, tensorflow)
+	ExecutionFormat string      `yaml:"execution_format"` // Execution format (onnx, pytorch, tensorflow)
+	Files           []ModelFile `yaml:"files"`
 }
 
 // ModelFile represents a file in the model package
@@ -72,10 +73,19 @@ type IO struct {
 
 // IOSpec describes an input or output
 type IOSpec struct {
-	Name        string `yaml:"name"`
-	DType       string `yaml:"dtype"`
-	Shape       []int  `yaml:"shape"` // null represented as -1
-	Description string `yaml:"description,omitempty"`
+	Name          string             `yaml:"name"`
+	DType         string             `yaml:"dtype"`
+	Shape         []int              `yaml:"shape"` // null represented as -1
+	Description   string             `yaml:"description,omitempty"`
+	Preprocessing *PreprocessingSpec `yaml:"preprocessing,omitempty"`
+}
+
+// PreprocessingSpec describes preprocessing requirements
+type PreprocessingSpec struct {
+	Type          string                 `yaml:"type"`                     // "tokenization", "normalization", "resize"
+	Tokenizer     string                 `yaml:"tokenizer,omitempty"`      // Path to tokenizer.json
+	TokenizerType string                 `yaml:"tokenizer_type,omitempty"` // "bert", "gpt2", etc.
+	Config        map[string]interface{} `yaml:"config,omitempty"`         // Normalization params, resize params, etc.
 }
 
 // Requirements specifies hardware and storage requirements

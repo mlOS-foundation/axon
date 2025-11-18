@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mlOS-foundation/axon/pkg/types"
@@ -223,6 +224,52 @@ func ComputeChecksum(filePath string) (string, int64, error) {
 
 	checksum := hex.EncodeToString(hasher.Sum(nil))
 	return checksum, size, nil
+}
+
+// UpdateManifestWithIOSchema updates manifest with I/O schema extracted from model files
+func UpdateManifestWithIOSchema(manifest *types.Manifest, modelPath string) error {
+	configPath := filepath.Join(modelPath, "config.json")
+	if _, err := os.Stat(configPath); err != nil {
+		// Config.json not available, skip I/O schema extraction
+		return nil
+	}
+
+	// Import builtin package to use I/O schema extraction
+	// Note: This creates a circular dependency, so we'll handle it differently
+	// For now, return nil - I/O schema extraction will be done in adapter
+	return nil
+}
+
+// UpdateManifestWithExecutionFormat updates manifest with execution format based on available files
+func UpdateManifestWithExecutionFormat(manifest *types.Manifest, modelPath string) error {
+	// Check for ONNX file
+	if _, err := os.Stat(filepath.Join(modelPath, "model.onnx")); err == nil {
+		manifest.Spec.Format.ExecutionFormat = "onnx"
+		return nil
+	}
+
+	// Check for PyTorch files
+	files, err := os.ReadDir(modelPath)
+	if err == nil {
+		for _, file := range files {
+			name := strings.ToLower(file.Name())
+			if strings.Contains(name, "pytorch") || strings.HasSuffix(name, ".pth") || strings.HasSuffix(name, ".pt") {
+				manifest.Spec.Format.ExecutionFormat = "pytorch"
+				return nil
+			}
+			if strings.Contains(name, "tensorflow") || strings.Contains(name, "saved_model") || strings.HasSuffix(name, ".pb") {
+				manifest.Spec.Format.ExecutionFormat = "tensorflow"
+				return nil
+			}
+		}
+	}
+
+	// Default to ONNX (most models will be converted)
+	if manifest.Spec.Format.ExecutionFormat == "" {
+		manifest.Spec.Format.ExecutionFormat = "onnx"
+	}
+
+	return nil
 }
 
 // UpdateManifestWithChecksum updates a manifest with the computed checksum and size.

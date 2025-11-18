@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -102,6 +103,46 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 		return nil, fmt.Errorf("model not found: %s/%s@%s", namespace, name, version)
 	}
 
+	// Try to fetch config.json to extract I/O schema
+	// This is optional - if it fails, we'll use generic I/O schema
+	var inputs, outputs []types.IOSpec
+	configURL := fmt.Sprintf("%s/%s/resolve/main/config.json", h.baseURL, hfModelID)
+	tempConfig := filepath.Join(os.TempDir(), fmt.Sprintf("axon-config-%d.json", time.Now().UnixNano()))
+
+	if resp, err := h.httpClient.Get(ctx, configURL); err == nil && resp.StatusCode == http.StatusOK {
+		// Download config.json temporarily
+		if file, err := os.Create(tempConfig); err == nil {
+			io.Copy(file, resp.Body)
+			file.Close()
+			resp.Body.Close()
+
+			// Extract I/O schema from config
+			if extractedInputs, extractedOutputs, err := ExtractIOSchemaFromConfig(tempConfig); err == nil {
+				inputs = extractedInputs
+				outputs = extractedOutputs
+			}
+			os.Remove(tempConfig) // Clean up
+		}
+	}
+
+	// Fallback to generic I/O schema if extraction failed
+	if len(inputs) == 0 {
+		inputs = []types.IOSpec{
+			{
+				Name:  "input",
+				DType: "float32",
+				Shape: []int{-1, -1},
+			},
+		}
+		outputs = []types.IOSpec{
+			{
+				Name:  "output",
+				DType: "float32",
+				Shape: []int{-1, -1},
+			},
+		}
+	}
+
 	// Create manifest with HF download URLs
 	manifest := &types.Manifest{
 		APIVersion: "v1",
@@ -121,7 +162,8 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 				Version: "2.0.0",
 			},
 			Format: types.Format{
-				Type: "pytorch",
+				Type:            "pytorch",
+				ExecutionFormat: "onnx", // Default to ONNX (will be updated after conversion)
 				Files: []types.ModelFile{
 					{
 						Path:   "pytorch_model.bin",
@@ -131,20 +173,8 @@ func (h *HuggingFaceAdapter) GetManifest(ctx context.Context, namespace, name, v
 				},
 			},
 			IO: types.IO{
-				Inputs: []types.IOSpec{
-					{
-						Name:  "input",
-						DType: "float32",
-						Shape: []int{-1, -1},
-					},
-				},
-				Outputs: []types.IOSpec{
-					{
-						Name:  "output",
-						DType: "float32",
-						Shape: []int{-1, -1},
-					},
-				},
+				Inputs:  inputs,
+				Outputs: outputs,
 			},
 			Requirements: types.Requirements{
 				Compute: types.Compute{
@@ -192,7 +222,24 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	modelFiles, err := h.getModelFiles(ctx, hfModelID)
 	if err != nil {
 		// Fallback to common files if API fails
-		modelFiles = []string{"config.json", "pytorch_model.bin", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+		modelFiles = []string{"config.json", "pytorch_model.bin", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+	}
+
+	// Ensure tokenizer files are included
+	tokenizerFiles := []string{"tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+	for _, tokenizerFile := range tokenizerFiles {
+		// Check if already in list
+		found := false
+		for _, file := range modelFiles {
+			if file == tokenizerFile {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// Try to add tokenizer file (will be skipped if not available)
+			modelFiles = append(modelFiles, tokenizerFile)
+		}
 	}
 
 	// Download files from Hugging Face

@@ -24,6 +24,31 @@ import (
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
+// updateManifestAfterInstall updates manifest with execution format and I/O schema after model installation
+func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
+	// Update execution format based on available files
+	if err := core.UpdateManifestWithExecutionFormat(m, modelPath); err != nil {
+		return fmt.Errorf("failed to update execution format: %w", err)
+	}
+
+	// Try to extract I/O schema from config.json if available
+	configPath := filepath.Join(modelPath, "config.json")
+	if _, err := os.Stat(configPath); err == nil {
+		inputs, outputs, err := builtin.ExtractIOSchemaFromConfig(configPath)
+		if err == nil && len(inputs) > 0 {
+			m.Spec.IO.Inputs = inputs
+			m.Spec.IO.Outputs = outputs
+		}
+	}
+
+	return nil
+}
+
+// saveManifest saves manifest to file
+func saveManifest(m *types.Manifest, path string) error {
+	return manifest.Write(m, path)
+}
+
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
@@ -506,6 +531,18 @@ func installCmd() *cobra.Command {
 					fmt.Printf("   ONNX file is available in cache directory\n")
 				} else {
 					fmt.Printf("✅ Package rebuilt with ONNX file included\n")
+				}
+			}
+
+			// Update manifest with execution format and I/O schema after extraction/conversion
+			// This ensures manifest reflects actual model files
+			if err := updateManifestAfterInstall(cachePath, manifest); err != nil {
+				fmt.Printf("⚠️  Failed to update manifest: %v\n", err)
+			} else {
+				// Save updated manifest
+				manifestPath := filepath.Join(cachePath, "manifest.yaml")
+				if err := saveManifest(manifest, manifestPath); err != nil {
+					fmt.Printf("⚠️  Failed to save updated manifest: %v\n", err)
 				}
 			}
 
