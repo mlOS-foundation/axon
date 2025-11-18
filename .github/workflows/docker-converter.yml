@@ -69,10 +69,13 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Test Docker image
-        if: github.event_name != 'pull_request'
         run: |
           # Test that the image works and has all dependencies (override entrypoint for testing)
-          IMAGE_TAG="ghcr.io/mlos-foundation/axon-converter:latest"
+          # Use the locally built image from the build step
+          IMAGE_TAG="${{ steps.meta.outputs.tags }}"
+          # Extract first tag (comma-separated list)
+          IMAGE_TAG=$(echo $IMAGE_TAG | cut -d',' -f1)
+          echo "Testing image: $IMAGE_TAG"
           docker run --rm --entrypoint="" $IMAGE_TAG python3 --version
           docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import torch; print('PyTorch:', torch.__version__)"
           docker run --rm --entrypoint="" $IMAGE_TAG python3 -c "import transformers; print('Transformers:', transformers.__version__)"
