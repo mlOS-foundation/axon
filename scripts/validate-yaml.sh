@@ -86,15 +86,72 @@ for file in $YAML_FILES; do
     rel_path="${file#$REPO_ROOT/}"
     echo -n "Checking $rel_path... "
     
+    # GitHub Actions workflow files need special handling (they use ${{ }} expressions)
+    IS_WORKFLOW=false
+    if echo "$file" | grep -q "\.github/workflows"; then
+        IS_WORKFLOW=true
+    fi
+    
     # Validate YAML syntax based on available tool
     if [ "$YAML_TOOL" = "yamllint" ]; then
-        # Use yamllint
-        if yamllint -d relaxed "$file" >/dev/null 2>&1; then
-            echo -e "${GREEN}✅${NC}"
+        if [ "$IS_WORKFLOW" = true ]; then
+            # For workflow files, yamllint has issues with ${{ }} expressions
+            # Use Python yaml module instead (it doesn't parse expressions)
+            if python3 << EOF 2>/dev/null; then
+import yaml
+import sys
+try:
+    with open('$file', 'r') as f:
+        data = f.read()
+        # Check for trailing newline (GitHub Actions requirement)
+        if not data.endswith('\n'):
+            print(f"⚠️  Missing trailing newline", file=sys.stderr)
+        yaml.safe_load(data)
+    print("✅")
+    sys.exit(0)
+except yaml.YAMLError as e:
+    if hasattr(e, 'problem_mark'):
+        mark = e.problem_mark
+        print(f"❌ YAML Error at line {mark.line + 1}, column {mark.column + 1}: {e}", file=sys.stderr)
+    else:
+        print(f"❌ YAML Error: {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"❌ Error: {e}", file=sys.stderr)
+    sys.exit(1)
+EOF
+                echo -e "${GREEN}✅${NC}"
+            else
+                echo -e "${RED}❌${NC}"
+                python3 << EOF 2>&1 | head -3
+import yaml
+import sys
+try:
+    with open('$file', 'r') as f:
+        data = f.read()
+        if not data.endswith('\n'):
+            print(f"⚠️  Missing trailing newline")
+        yaml.safe_load(data)
+except yaml.YAMLError as e:
+    if hasattr(e, 'problem_mark'):
+        mark = e.problem_mark
+        print(f"Line {mark.line + 1}, column {mark.column + 1}: {e}")
+    else:
+        print(f"YAML Error: {e}")
+except Exception as e:
+    print(f"Error: {e}")
+EOF
+                ERRORS=$((ERRORS + 1))
+            fi
         else
-            echo -e "${RED}❌${NC}"
-            yamllint -d relaxed "$file" 2>&1 | head -5
-            ERRORS=$((ERRORS + 1))
+            # Use yamllint for non-workflow files
+            if yamllint -d relaxed "$file" >/dev/null 2>&1; then
+                echo -e "${GREEN}✅${NC}"
+            else
+                echo -e "${RED}❌${NC}"
+                yamllint -d relaxed "$file" 2>&1 | head -5
+                ERRORS=$((ERRORS + 1))
+            fi
         fi
     else
         # Use Python yaml module
