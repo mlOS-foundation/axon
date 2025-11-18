@@ -84,19 +84,23 @@ jobs:
           IMAGE_TAG="${{ steps.meta.outputs.tags }}"
           # Extract first tag (comma-separated list)
           IMAGE_TAG=$(echo $IMAGE_TAG | cut -d',' -f1)
-          echo "Saving image $IMAGE_TAG as OCI artifacts..."
+          echo "Saving image $IMAGE_TAG as OCI artifacts for both platforms..."
           
-          # Pull the amd64 image from registry (most common platform)
+          # Pull and save linux/amd64 image
           echo "Pulling linux/amd64 image from registry..."
           docker pull --platform linux/amd64 $IMAGE_TAG
-          
-          # Save as compressed tar.gz
           docker save $IMAGE_TAG | gzip > axon-converter-${VERSION}-linux-amd64.tar.gz
+          echo "✅ Saved: axon-converter-${VERSION}-linux-amd64.tar.gz ($(du -h axon-converter-${VERSION}-linux-amd64.tar.gz | cut -f1))"
           
-          echo "✅ Saved: axon-converter-${VERSION}-linux-amd64.tar.gz"
-          ls -lh axon-converter-*.tar.gz
+          # Pull and save linux/arm64 image
+          echo "Pulling linux/arm64 image from registry..."
+          docker pull --platform linux/arm64 $IMAGE_TAG
+          docker save $IMAGE_TAG | gzip > axon-converter-${VERSION}-linux-arm64.tar.gz
+          echo "✅ Saved: axon-converter-${VERSION}-linux-arm64.tar.gz ($(du -h axon-converter-${VERSION}-linux-arm64.tar.gz | cut -f1))"
+          
           echo ""
-          echo "File size: $(du -h axon-converter-${VERSION}-linux-amd64.tar.gz | cut -f1)"
+          echo "All OCI artifacts:"
+          ls -lh axon-converter-*.tar.gz
 
       - name: Upload OCI artifacts to release
         if: github.event_name == 'release'
@@ -109,12 +113,16 @@ jobs:
           body: |
             Docker images are also available as OCI artifacts attached to this release.
             
-            **To load the image:**
+            **To load the image (choose the appropriate platform):**
             \`\`\`bash
+            # For linux/amd64:
             docker load < axon-converter-${VERSION}-linux-amd64.tar.gz
+            
+            # For linux/arm64:
+            docker load < axon-converter-${VERSION}-linux-arm64.tar.gz
             \`\`\`
             
-            **Or pull from registry:**
+            **Or pull from registry (Docker will automatically select the correct platform):**
             \`\`\`bash
             docker pull ghcr.io/mlos-foundation/axon-converter:${VERSION}
             \`\`\`
