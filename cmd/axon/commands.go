@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -45,8 +46,13 @@ func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
 }
 
 // saveManifest saves manifest to file
+// Uses JSON format to match CacheModel's format
 func saveManifest(m *types.Manifest, path string) error {
-	return manifest.Write(m, path)
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 // copyFile copies a file from src to dst
@@ -543,6 +549,8 @@ func installCmd() *cobra.Command {
 				manifestPath := filepath.Join(cachePath, "manifest.yaml")
 				if err := saveManifest(manifest, manifestPath); err != nil {
 					fmt.Printf("⚠️  Failed to save updated manifest: %v\n", err)
+				} else {
+					fmt.Printf("✓ Manifest updated with execution_format: %s\n", manifest.Spec.Format.ExecutionFormat)
 				}
 			}
 
@@ -1185,4 +1193,20 @@ func registryCmd() *cobra.Command {
 	})
 
 	return cmd
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long:  "Display Axon version, build information, and runtime details",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Axon Version: %s\n", version)
+			fmt.Printf("Build Type:   %s\n", buildType)
+			fmt.Printf("Git Commit:   %s\n", gitCommit)
+			fmt.Printf("Build Date:   %s\n", buildDate)
+			fmt.Printf("Go Version:   %s\n", runtime.Version())
+			fmt.Printf("OS/Arch:      %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		},
+	}
 }

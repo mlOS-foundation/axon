@@ -242,7 +242,7 @@ func UpdateManifestWithIOSchema(manifest *types.Manifest, modelPath string) erro
 
 // UpdateManifestWithExecutionFormat updates manifest with execution format based on available files
 func UpdateManifestWithExecutionFormat(manifest *types.Manifest, modelPath string) error {
-	// Check for ONNX file
+	// Check for ONNX file first (highest priority)
 	if _, err := os.Stat(filepath.Join(modelPath, "model.onnx")); err == nil {
 		manifest.Spec.Format.ExecutionFormat = "onnx"
 		return nil
@@ -253,20 +253,39 @@ func UpdateManifestWithExecutionFormat(manifest *types.Manifest, modelPath strin
 	if err == nil {
 		for _, file := range files {
 			name := strings.ToLower(file.Name())
-			if strings.Contains(name, "pytorch") || strings.HasSuffix(name, ".pth") || strings.HasSuffix(name, ".pt") {
+			// PyTorch files
+			if strings.Contains(name, "pytorch") || strings.HasSuffix(name, ".pth") || strings.HasSuffix(name, ".pt") || strings.HasSuffix(name, ".bin") {
 				manifest.Spec.Format.ExecutionFormat = "pytorch"
 				return nil
 			}
-			if strings.Contains(name, "tensorflow") || strings.Contains(name, "saved_model") || strings.HasSuffix(name, ".pb") {
+			// TensorFlow files
+			if strings.Contains(name, "tensorflow") || strings.Contains(name, "saved_model") || strings.HasSuffix(name, ".pb") || strings.HasSuffix(name, ".h5") {
+				manifest.Spec.Format.ExecutionFormat = "tensorflow"
+				return nil
+			}
+			// TensorFlow Hub models are typically in tar.gz archives
+			// Check if manifest type indicates TensorFlow
+			if strings.HasSuffix(name, ".tar.gz") && manifest.Spec.Format.Type == "saved_model" {
 				manifest.Spec.Format.ExecutionFormat = "tensorflow"
 				return nil
 			}
 		}
 	}
 
-	// Default to ONNX (most models will be converted)
+	// Use manifest type as hint if no files match
 	if manifest.Spec.Format.ExecutionFormat == "" {
-		manifest.Spec.Format.ExecutionFormat = "onnx"
+		switch strings.ToLower(manifest.Spec.Format.Type) {
+		case "pytorch", "torch":
+			manifest.Spec.Format.ExecutionFormat = "pytorch"
+		case "tensorflow", "saved_model", "tf":
+			manifest.Spec.Format.ExecutionFormat = "tensorflow"
+		case "modelscope":
+			// ModelScope models are typically PyTorch
+			manifest.Spec.Format.ExecutionFormat = "pytorch"
+		default:
+			// Default to ONNX (most models will be converted)
+			manifest.Spec.Format.ExecutionFormat = "onnx"
+		}
 	}
 
 	return nil

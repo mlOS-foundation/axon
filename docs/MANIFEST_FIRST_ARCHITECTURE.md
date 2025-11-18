@@ -125,6 +125,122 @@ Axon automatically sets `execution_format` based on available files:
 3. **TensorFlow files** → `execution_format: tensorflow` (or `onnx` if converted)
 4. **Default** → `execution_format: onnx` (most models converted to ONNX)
 
+## ONNX Conversion in Manifest-First Architecture
+
+### Overview
+
+In the manifest-first architecture, **ONNX conversion is still the preferred path**, but the manifest reflects **what's actually available** after conversion attempts. This provides graceful degradation and format flexibility.
+
+### Conversion Flow During `axon install`
+
+When you run `axon install`, the following happens:
+
+1. **Initial Manifest** (from adapter):
+   - Adapter sets `execution_format: "onnx"` as default/preferred format
+   - I/O schema extracted from `config.json` (if available)
+   - Preprocessing hints added based on model type
+
+2. **ONNX Conversion Attempt** (non-blocking):
+   ```
+   Attempt 1: Download pre-converted ONNX from repository (pure Go, no deps)
+   ↓ (if not available)
+   Attempt 2: Docker-based conversion (no Python on host)
+   ↓ (if Docker unavailable)
+   Attempt 3: Local Python conversion (if Python available)
+   ↓ (if all fail)
+   Conversion skipped (graceful degradation)
+   ```
+
+3. **Manifest Update** (after conversion):
+   - `updateManifestAfterInstall()` detects actual files:
+     - ✅ `model.onnx` exists → `execution_format: "onnx"`
+     - ⚠️ Only PyTorch files → `execution_format: "pytorch"`
+     - ⚠️ Only TensorFlow files → `execution_format: "tensorflow"`
+     - Default → `execution_format: "onnx"` (if nothing detected)
+
+4. **Manifest Saved**:
+   - Updated manifest reflects reality
+   - Core will use `execution_format` to select appropriate plugin
+
+### Key Benefits
+
+**✅ ONNX Remains Preferred:**
+- ONNX is still the default and preferred format
+- Conversion is attempted first (multiple fallback strategies)
+- Most models will have ONNX format
+
+**✅ Graceful Degradation:**
+- If conversion fails, installation doesn't fail
+- Manifest reflects what's actually available
+- Model can still work with framework-specific plugins
+
+**✅ Format Flexibility:**
+- Core selects plugin based on manifest's `execution_format`
+- No hardcoded assumptions in Core
+- Easy to change default format in future
+
+**✅ Future-Proof:**
+- If Axon moves away from ONNX, only manifest default changes
+- Core doesn't need changes (reads from manifest)
+- Multiple formats can coexist
+
+### Example Scenarios
+
+**Scenario 1: Successful ONNX Conversion**
+```yaml
+# Initial manifest (from adapter)
+spec:
+  format:
+    execution_format: onnx  # Default
+
+# After install (conversion successful)
+spec:
+  format:
+    execution_format: onnx  # Confirmed (model.onnx exists)
+```
+
+**Scenario 2: ONNX Conversion Failed, PyTorch Available**
+```yaml
+# Initial manifest (from adapter)
+spec:
+  format:
+    execution_format: onnx  # Default
+
+# After install (conversion failed, PyTorch files present)
+spec:
+  format:
+    execution_format: pytorch  # Updated to reflect reality
+```
+
+**Scenario 3: Pre-converted ONNX Downloaded**
+```yaml
+# Initial manifest (from adapter)
+spec:
+  format:
+    execution_format: onnx  # Default
+
+# After install (pre-converted ONNX downloaded from HF)
+spec:
+  format:
+    execution_format: onnx  # Confirmed (model.onnx downloaded)
+```
+
+### Implementation Details
+
+**Location:** `axon/cmd/axon/commands.go` → `installCmd()`
+
+**Flow:**
+1. Download package → Extract to cache
+2. Call `converter.ConvertToONNX()` (attempts conversion)
+3. Call `updateManifestAfterInstall()` (detects actual format)
+4. Save updated manifest
+
+**Conversion Strategy:** `axon/internal/converter/onnx.go`
+- Pure Go download (preferred)
+- Docker-based conversion (fallback)
+- Local Python conversion (last resort)
+- Graceful failure (non-blocking)
+
 ## Benefits
 
 ### 1. Format Independence

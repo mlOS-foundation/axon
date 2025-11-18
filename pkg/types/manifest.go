@@ -53,9 +53,9 @@ type Framework struct {
 
 // Format describes the model file format
 type Format struct {
-	Type            string      `yaml:"type"`             // Original format (pytorch, tensorflow)
-	ExecutionFormat string      `yaml:"execution_format"` // Execution format (onnx, pytorch, tensorflow)
-	Files           []ModelFile `yaml:"files"`
+	Type            string      `yaml:"type" json:"type"`                           // Original format (pytorch, tensorflow)
+	ExecutionFormat string      `yaml:"execution_format" json:"execution_format"`   // Execution format (onnx, pytorch, tensorflow)
+	Files           []ModelFile `yaml:"files" json:"files"`
 }
 
 // ModelFile represents a file in the model package
