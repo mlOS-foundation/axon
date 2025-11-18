@@ -100,13 +100,33 @@ for file in $YAML_FILES; do
             # Check if PyYAML is available, install if needed
             if ! python3 -c "import yaml" 2>/dev/null; then
                 echo ""
-                echo -e "${YELLOW}⚠️  PyYAML needed for workflow validation, installing...${NC}"
+                echo -e "${YELLOW}⚠️  PyYAML needed for workflow validation${NC}"
+                # Try multiple installation methods
+                INSTALLED=false
+                # Method 1: Try --user install
                 if python3 -m pip install --user pyyaml >/dev/null 2>&1; then
+                    INSTALLED=true
+                # Method 2: Try with --break-system-packages (macOS externally-managed Python)
+                elif python3 -m pip install --user --break-system-packages pyyaml >/dev/null 2>&1; then
+                    INSTALLED=true
+                # Method 3: Try system-wide (may require sudo, but won't fail silently)
+                elif python3 -m pip install pyyaml >/dev/null 2>&1; then
+                    INSTALLED=true
+                fi
+                
+                if [ "$INSTALLED" = true ]; then
                     echo -e "${GREEN}✅ PyYAML installed${NC}"
                 else
                     echo -e "${RED}❌ Failed to install PyYAML${NC}"
-                    echo "Please install manually: pip3 install --user pyyaml"
-                    echo "Or use: brew install libyaml && pip3 install --user pyyaml"
+                    echo ""
+                    echo "Please install PyYAML manually using one of:"
+                    echo "  pip3 install --user --break-system-packages pyyaml"
+                    echo "  brew install libyaml && pip3 install --user pyyaml"
+                    echo ""
+                    echo "Or install yamllint (preferred, no Python dependencies):"
+                    echo "  brew install yamllint"
+                    echo ""
+                    echo "After installation, run 'make validate-yaml' again."
                     exit 1
                 fi
             fi
