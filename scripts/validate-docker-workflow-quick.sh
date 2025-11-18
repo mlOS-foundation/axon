@@ -76,12 +76,8 @@ echo ""
 echo "===================================="
 if [ $ERRORS -eq 0 ]; then
     echo -e "${GREEN}✅ All quick checks passed!${NC}"
-    echo ""
-    echo "To fully validate (builds image - takes 5-10 minutes):"
-    echo "  ./scripts/validate-docker-workflow.sh"
     exit 0
 else
     echo -e "${RED}❌ Found $ERRORS error(s)${NC}"
     exit 1
 fi
-
