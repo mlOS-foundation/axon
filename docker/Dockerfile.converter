@@ -50,4 +50,6 @@ LABEL org.opencontainers.image.title="Axon ONNX Converter"
 LABEL org.opencontainers.image.description="Docker image for ONNX model conversion with all ML frameworks"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.source="https://github.com/mlOS-foundation/axon"
+LABEL org.opencontainers.image.url="https://github.com/mlOS-foundation/axon"
+LABEL org.opencontainers.image.vendor="mlOS Foundation"
 
