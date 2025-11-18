@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -23,6 +24,36 @@ import (
 	"github.com/mlOS-foundation/axon/internal/registry/core"
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
+
+// updateManifestAfterInstall updates manifest with execution format and I/O schema after model installation
+func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
+	// Update execution format based on available files
+	if err := core.UpdateManifestWithExecutionFormat(m, modelPath); err != nil {
+		return fmt.Errorf("failed to update execution format: %w", err)
+	}
+
+	// Try to extract I/O schema from config.json if available
+	configPath := filepath.Join(modelPath, "config.json")
+	if _, err := os.Stat(configPath); err == nil {
+		inputs, outputs, err := builtin.ExtractIOSchemaFromConfig(configPath)
+		if err == nil && len(inputs) > 0 {
+			m.Spec.IO.Inputs = inputs
+			m.Spec.IO.Outputs = outputs
+		}
+	}
+
+	return nil
+}
+
+// saveManifest saves manifest to file
+// Uses JSON format to match CacheModel's format
+func saveManifest(m *types.Manifest, path string) error {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+	return os.WriteFile(path, data, 0644)
+}
 
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
@@ -506,6 +537,20 @@ func installCmd() *cobra.Command {
 					fmt.Printf("   ONNX file is available in cache directory\n")
 				} else {
 					fmt.Printf("✅ Package rebuilt with ONNX file included\n")
+				}
+			}
+
+			// Update manifest with execution format and I/O schema after extraction/conversion
+			// This ensures manifest reflects actual model files
+			if err := updateManifestAfterInstall(cachePath, manifest); err != nil {
+				fmt.Printf("⚠️  Failed to update manifest: %v\n", err)
+			} else {
+				// Save updated manifest
+				manifestPath := filepath.Join(cachePath, "manifest.yaml")
+				if err := saveManifest(manifest, manifestPath); err != nil {
+					fmt.Printf("⚠️  Failed to save updated manifest: %v\n", err)
+				} else {
+					fmt.Printf("✓ Manifest updated with execution_format: %s\n", manifest.Spec.Format.ExecutionFormat)
 				}
 			}
 
@@ -1148,4 +1193,20 @@ func registryCmd() *cobra.Command {
 	})
 
 	return cmd
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long:  "Display Axon version, build information, and runtime details",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("Axon Version: %s\n", version)
+			fmt.Printf("Build Type:   %s\n", buildType)
+			fmt.Printf("Git Commit:   %s\n", gitCommit)
+			fmt.Printf("Build Date:   %s\n", buildDate)
+			fmt.Printf("Go Version:   %s\n", runtime.Version())
+			fmt.Printf("OS/Arch:      %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		},
+	}
 }

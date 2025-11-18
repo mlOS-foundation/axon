@@ -2,7 +2,7 @@
 
 # Build variables
 BINARY_NAME=axon
-VERSION?=v0.1.0
+VERSION?=1.7.0
 BUILD_DIR=bin
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
 
@@ -22,7 +22,9 @@ help: ## Show this help message
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	@go build -ldflags "-X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/axon
+	@GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	go build -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=local" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/axon
 	@echo "✓ Built $(BUILD_DIR)/$(BINARY_NAME)"
 
 test: ## Run tests
@@ -87,9 +89,15 @@ vet: ## Run go vet
 	@go vet ./...
 	@echo "✓ go vet passed"
 
+ci: fmt-check vet lint test build ## Run all CI checks (format, vet, lint, test, build)
+	@echo ""
+	@echo "✅ All CI checks passed!"
+
 install: build ## Install to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
-	@go install ./cmd/axon
+	@GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	go install -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=installed" ./cmd/axon
 	@echo "✓ Installed $(BINARY_NAME)"
 
 build-local: build ## Build and install to ~/.local/bin (no sudo required)
@@ -104,6 +112,9 @@ build-local: build ## Build and install to ~/.local/bin (no sudo required)
 		echo "   Add this to your shell config (~/.bashrc, ~/.zshrc, etc.):"; \
 		echo "   export PATH=\"$$HOME/.local/bin:\$$PATH\""; \
 	fi
+	@echo ""
+	@echo "Version info:"
+	@$$HOME/.local/bin/$(BINARY_NAME) version || true
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Manifest-First Architecture**: Format-agnostic model package format (#TBD)
+  - Added `execution_format` to Format struct for dynamic plugin selection
+  - Added `PreprocessingSpec` to IOSpec for preprocessing hints
+  - Automatic I/O schema extraction from model configs (BERT, GPT, T5, Vision models)
+  - Preprocessing hints for tokenization, normalization, image preprocessing
+  - Execution format detection based on available model files
+  - Manifest updates after installation with actual I/O schema and execution format
+  - Ensures tokenizer files are included in packages
+  - Enables format-agnostic Core execution
+  - Future-proof architecture for format transitions
+
+### Benefits
+- **Format Independence**: Core can support multiple execution formats simultaneously
+- **Future-Proof**: Easy format transitions (ONNX → PyTorch → etc.) without Core changes
+- **Complete Metadata**: All execution information in manifest (I/O schema, preprocessing, format)
+- **Preprocessing Automation**: Automatic tokenization and preprocessing based on manifest hints
+- **Dynamic Plugin Selection**: Core selects plugin based on execution_format in manifest
+
 ### Planned
 - Enhanced caching and optimization
 - Model versioning and A/B testing
