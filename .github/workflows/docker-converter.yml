@@ -11,7 +11,7 @@ on:
         default: 'latest'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -74,3 +74,47 @@ jobs:
       - name: Image digest
         run: |
           echo "Image digest: ${{ steps.build.outputs.digest }}"
+
+      - name: Save Docker images as OCI artifacts
+        if: github.event_name == 'release'
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          # Extract version without 'v' prefix
+          VERSION=${VERSION#v}
+          IMAGE_TAG="${{ steps.meta.outputs.tags }}"
+          # Extract first tag (comma-separated list)
+          IMAGE_TAG=$(echo $IMAGE_TAG | cut -d',' -f1)
+          echo "Saving image $IMAGE_TAG as OCI artifacts..."
+          
+          # Pull the amd64 image from registry (most common platform)
+          echo "Pulling linux/amd64 image from registry..."
+          docker pull --platform linux/amd64 $IMAGE_TAG
+          
+          # Save as compressed tar.gz
+          docker save $IMAGE_TAG | gzip > axon-converter-${VERSION}-linux-amd64.tar.gz
+          
+          echo "✅ Saved: axon-converter-${VERSION}-linux-amd64.tar.gz"
+          ls -lh axon-converter-*.tar.gz
+          echo ""
+          echo "File size: $(du -h axon-converter-${VERSION}-linux-amd64.tar.gz | cut -f1)"
+
+      - name: Upload OCI artifacts to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: axon-converter-*.tar.gz
+          tag_name: ${{ github.event.release.tag_name }}
+          draft: false
+          prerelease: false
+          body: |
+            Docker images are also available as OCI artifacts attached to this release.
+            
+            **To load the image:**
+            \`\`\`bash
+            docker load < axon-converter-${VERSION}-linux-amd64.tar.gz
+            \`\`\`
+            
+            **Or pull from registry:**
+            \`\`\`bash
+            docker pull ghcr.io/mlos-foundation/axon-converter:${VERSION}
+            \`\`\`

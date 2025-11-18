@@ -13,9 +13,13 @@ RUN apt-get update && apt-get install -y \
 
 # Install all Python ML frameworks for ONNX conversion
 # This covers all default repositories supported by Axon
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
+# Using BuildKit cache mount for pip cache to speed up builds
+# Cache is used during build but not included in final image
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install \
     # PyTorch ecosystem (for Hugging Face, PyTorch Hub)
+    # Using CPU-only builds for smaller size and faster install
     torch>=2.0.0 \
     transformers>=4.30.0 \
     # TensorFlow ecosystem (for TensorFlow Hub)
@@ -28,7 +32,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     onnxruntime>=1.18.0 \
     # Utilities
     numpy>=1.24.0 \
-    protobuf>=4.21.0
+    protobuf>=4.21.0 && \
+    # Clean pip cache after installation to reduce image size
+    pip cache purge || true
 
 # Create conversion scripts directory
 WORKDIR /axon/scripts
