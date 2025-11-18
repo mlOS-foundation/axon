@@ -89,7 +89,11 @@ vet: ## Run go vet
 	@go vet ./...
 	@echo "✓ go vet passed"
 
-ci: fmt-check vet lint test build ## Run all CI checks (format, vet, lint, test, build)
+validate-yaml: ## Validate all YAML files
+	@echo "Validating YAML files..."
+	@./scripts/validate-yaml.sh
+
+ci: fmt-check vet lint test build validate-yaml ## Run all CI checks (format, vet, lint, test, build, yaml)
 	@echo ""
 	@echo "✅ All CI checks passed!"
 
@@ -137,10 +141,9 @@ tidy: ## Tidy go.mod
 dev: ## Run in development mode
 	@go run ./cmd/axon
 
-# CI targets
-ci: fmt-check vet lint test ## Run all CI checks
+# CI targets (duplicate removed - using the one above with validate-yaml)
 
-validate: fmt-check vet lint test ## Alias for ci
+validate: fmt-check vet lint test validate-yaml ## Alias for ci
 
 validate-pr: install-tools ## Run all validation checks before PR (fmt, vet, lint, test, build)
 	@./validate-pr.sh

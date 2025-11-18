@@ -87,4 +87,3 @@ jobs:
       - name: Image digest
         if: github.event_name != 'pull_request'
         run: echo "Image digest: ${{ steps.build.outputs.digest }}"
-
