@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [2.0.1] - 2024-11-18
+
+### Fixed
+- **Docker Image Name**: Fixed incorrect Docker image name for ONNX converter (#26)
+  - Changed from `axon-converter:latest` to `ghcr.io/mlOS-foundation/axon-converter:latest`
+  - Docker-based ONNX conversion now works correctly
+  - Users can convert models to ONNX without local Python dependencies
+  - Fixes error: "failed to pull Docker image axon-converter:latest"
+
 ## [2.0.0] - 2024-11-18
 
 ### ⚠️ BREAKING CHANGES
