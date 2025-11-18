@@ -14,10 +14,10 @@ var (
 	cfg *config.Config
 
 	// Version information set via ldflags during build
-	version   = "dev"        // Version (e.g., "1.7.0")
-	buildDate = "unknown"    // Build date (ISO 8601 format)
-	gitCommit = "unknown"    // Git commit hash
-	buildType = "local"      // Build type: "local" or "release"
+	version   = "dev"     // Version (e.g., "1.7.0")
+	buildDate = "unknown" // Build date (ISO 8601 format)
+	gitCommit = "unknown" // Git commit hash
+	buildType = "local"   // Build type: "local" or "release"
 )
 
 func init() {

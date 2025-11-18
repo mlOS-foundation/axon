@@ -89,6 +89,10 @@ vet: ## Run go vet
 	@go vet ./...
 	@echo "✓ go vet passed"
 
+ci: fmt-check vet lint test build ## Run all CI checks (format, vet, lint, test, build)
+	@echo ""
+	@echo "✅ All CI checks passed!"
+
 install: build ## Install to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
 	@GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
