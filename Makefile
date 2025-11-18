@@ -91,7 +91,7 @@ vet: ## Run go vet
 
 validate-yaml: ## Validate all YAML files
 	@echo "Validating YAML files..."
-	@./scripts/validate-yaml.sh || (echo "⚠️  YAML validation failed. Install PyYAML: pip3 install --user pyyaml" && exit 1)
+	@./scripts/validate-yaml.sh
 
 ci: fmt-check vet lint test build validate-yaml ## Run all CI checks (format, vet, lint, test, build, yaml)
 	@echo ""
