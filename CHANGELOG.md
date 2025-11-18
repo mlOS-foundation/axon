@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Enhanced caching and optimization
+- Model versioning and A/B testing
+
+## [2.0.0] - 2024-11-18
+
+### ⚠️ BREAKING CHANGES
+
+This release introduces the **Manifest-First Architecture**, a fundamental architectural change that enables format-agnostic model execution. While backward compatible for basic operations, this change requires Core to read `execution_format` from manifests for proper plugin selection.
+
+**Migration Notes:**
+- Existing manifests will be automatically updated with `execution_format` on next `axon install`
+- Core implementations must read `execution_format` from manifest for plugin selection
+- Manifest structure now includes `execution_format` field (required for Core v2.0.0+)
+
 ### Added
-- **Manifest-First Architecture**: Format-agnostic model package format (#TBD)
+- **Manifest-First Architecture**: Format-agnostic model package format (#25)
   - Added `execution_format` to Format struct for dynamic plugin selection
   - Added `PreprocessingSpec` to IOSpec for preprocessing hints
   - Automatic I/O schema extraction from model configs (BERT, GPT, T5, Vision models)
@@ -18,17 +33,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensures tokenizer files are included in packages
   - Enables format-agnostic Core execution
   - Future-proof architecture for format transitions
+- **Version Command**: New `axon version` command (#25)
+  - Shows Axon version, build type (local vs installed), git commit, build date
+  - Displays Go version and OS/Architecture
+  - Auto-detects build type based on binary location
+  - Helps distinguish between installed and local builds
+- **Enhanced Format Detection**: Improved execution format detection (#25)
+  - Support for archived models (TensorFlow Hub `.tar.gz`, ModelScope packages)
+  - Manifest type fallback when files don't match expected patterns
+  - Enhanced file detection for `.bin` (PyTorch), `.h5` (TensorFlow/Keras)
+  - Automatic format detection for all supported repositories
+- **PR Validation**: Local CI checks before pushing (#25)
+  - Pre-push git hook for automatic validation
+  - `make ci` target for running all CI checks locally
+  - Comprehensive `validate-pr.sh` script matching CI exactly
+  - Documentation guide in `docs/PR_VALIDATION.md`
+
+### Changed
+- **Manifest Structure**: Enhanced Format and IOSpec structures
+  - `Format.ExecutionFormat` field added (required for Core compatibility)
+  - `IOSpec.Preprocessing` field added for preprocessing hints
+  - Manifest saved as JSON (matching cache manager format)
+- **ONNX Conversion Flow**: Improved integration with manifest-first architecture
+  - ONNX conversion remains preferred path
+  - Graceful degradation when conversion fails
+  - Manifest reflects actual execution format after conversion attempts
+  - Detailed documentation in `docs/MANIFEST_FIRST_ARCHITECTURE.md`
 
 ### Benefits
 - **Format Independence**: Core can support multiple execution formats simultaneously
 - **Future-Proof**: Easy format transitions (ONNX → PyTorch → etc.) without Core changes
 - **Complete Metadata**: All execution information in manifest (I/O schema, preprocessing, format)
 - **Preprocessing Automation**: Automatic tokenization and preprocessing based on manifest hints
-- **Dynamic Plugin Selection**: Core selects plugin based on execution_format in manifest
+- **Dynamic Plugin Selection**: Core selects plugin based on `execution_format` in manifest
+- **Better Developer Experience**: Local validation prevents CI failures
+- **Improved Debugging**: Version command helps identify build type and version
 
-### Planned
-- Enhanced caching and optimization
-- Model versioning and A/B testing
+### Documentation
+- Added `docs/MANIFEST_FIRST_ARCHITECTURE.md`: Comprehensive architecture documentation
+- Added `docs/PR_VALIDATION.md`: Guide for PR validation and local testing
+- Added `FORMAT_DETECTION_TEST_RESULTS.md`: Test results for all repositories
+- Updated website (`mlosfoundation.org/ecosystem.html`) with manifest-first features
+
+### Testing
+- ✅ Format detection tested across all repositories:
+  - PyTorch Hub: `pytorch/vision/resnet18` → `execution_format: pytorch`
+  - Hugging Face: `hf/distilbert-base-uncased` → `execution_format: pytorch`
+  - TensorFlow Hub: `tfhub/google/imagenet/mobilenet_v2_100_224/classification/5` → `execution_format: tensorflow`
+  - ModelScope: `modelscope/damo/cv_resnet18_image-classification` → `execution_format: pytorch`
+- ✅ All CI checks passing
+- ✅ Pre-push validation working
 
 ## [1.7.0] - 2024-11-17
 
