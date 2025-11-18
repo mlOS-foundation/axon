@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [2.0.2] - 2024-11-19
+
+### Fixed
+- **Docker Workflow YAML Syntax**: Fixed YAML syntax error on line 89 in docker-converter workflow (#33, #34)
+  - Changed single-line `run:` command to multi-line format for GitHub Actions expressions
+  - Fixes "mapping values are not allowed here" error
+  - Workflow now validates correctly in GitHub Actions
+- **Docker Workflow Triggers**: Optimized Docker image build triggers (#34)
+  - Removed push/pull_request triggers (no longer builds on every Dockerfile change)
+  - Only triggers on release creation/publication
+  - Can still be manually triggered via workflow_dispatch
+  - Reduces CI costs and ensures images are only published for stable releases
+- **YAML Validation**: Added comprehensive local YAML validation (#32)
+  - New `scripts/validate-yaml.sh` script for local validation
+  - Integrated into `make validate-yaml` and `make ci`
+  - Supports both yamllint and PyYAML validation
+  - Auto-installs yamllint via Homebrew on macOS
+  - Catches YAML errors locally before pushing
+
+### Changed
+- **Docker Workflow**: Improved workflow efficiency and cost management
+  - Images only built and pushed on releases (not on every change)
+  - Better versioning strategy (semver tags for releases)
+  - Cleaner workflow logic (removed unnecessary conditionals)
+
 ## [2.0.1] - 2024-11-18
 
 ### Fixed
