@@ -77,8 +77,8 @@ else
     fi
 fi
 
-# Find all YAML files
-YAML_FILES=$(find "$REPO_ROOT" -name "*.yml" -o -name "*.yaml" | grep -v node_modules | grep -v ".git" | sort)
+# Find all YAML files (exclude .git directory but include .github directory)
+YAML_FILES=$(find "$REPO_ROOT" -name "*.yml" -o -name "*.yaml" | grep -v node_modules | grep -v "/\.git/" | sort)
 
 ERRORS=0
 
