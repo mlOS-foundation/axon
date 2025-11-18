@@ -97,6 +97,19 @@ for file in $YAML_FILES; do
         if [ "$IS_WORKFLOW" = true ]; then
             # For workflow files, yamllint has issues with ${{ }} expressions
             # Use Python yaml module instead (it doesn't parse expressions)
+            # Check if PyYAML is available, install if needed
+            if ! python3 -c "import yaml" 2>/dev/null; then
+                echo ""
+                echo -e "${YELLOW}⚠️  PyYAML needed for workflow validation, installing...${NC}"
+                if python3 -m pip install --user pyyaml >/dev/null 2>&1; then
+                    echo -e "${GREEN}✅ PyYAML installed${NC}"
+                else
+                    echo -e "${RED}❌ Failed to install PyYAML${NC}"
+                    echo "Please install manually: pip3 install --user pyyaml"
+                    echo "Or use: brew install libyaml && pip3 install --user pyyaml"
+                    exit 1
+                fi
+            fi
             if python3 << EOF 2>/dev/null; then
 import yaml
 import sys
