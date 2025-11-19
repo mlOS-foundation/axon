@@ -17,22 +17,19 @@ RUN apt-get update && apt-get install -y \
 # Cache is used during build but not included in final image
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
+    # Install protobuf first (TensorFlow 2.13+ requires protobuf < 4.21)
+    pip install "protobuf<4.21,>=3.20" && \
+    # Install TensorFlow first (before PyTorch to avoid CUDA conflicts)
+    # TensorFlow defaults to CPU-only unless CUDA libraries are present
+    pip install tensorflow>=2.13.0 tf2onnx>=1.15.0 && \
+    # Install PyTorch CPU-only to avoid CUDA conflicts with TensorFlow
+    pip install torch --index-url https://download.pytorch.org/whl/cpu && \
+    # Install remaining packages
     pip install \
-    # PyTorch ecosystem (for Hugging Face, PyTorch Hub)
-    # Using CPU-only builds for smaller size and faster install
-    torch>=2.0.0 \
     transformers>=4.30.0 \
-    # TensorFlow ecosystem (for TensorFlow Hub)
-    # Note: TensorFlow 2.13+ requires protobuf < 4.21, so install compatible protobuf first
-    "protobuf<4.21,>=3.20" \
-    tensorflow>=2.13.0 \
-    tf2onnx>=1.15.0 \
-    # ModelScope (for ModelScope repository)
     modelscope>=1.9.0 \
-    # ONNX ecosystem (for validation and conversion)
     onnx>=1.14.0 \
     onnxruntime>=1.18.0 \
-    # Utilities
     numpy>=1.24.0 && \
     # Clean pip cache after installation to reduce image size
     pip cache purge || true
