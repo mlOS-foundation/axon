@@ -11,6 +11,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [2.1.0] - 2024-11-19
+
+### Added
+- **OCI Artifacts in Releases**: Docker images now available as OCI artifacts attached to GitHub Releases (#36)
+  - Docker images saved as `.tar.gz` files for both `linux/amd64` and `linux/arm64` platforms
+  - Users can download images directly from releases without needing a container registry
+  - Images available alongside release binaries for convenient distribution
+  - Usage: `docker load < axon-converter-2.1.0-linux-amd64.tar.gz`
+- **Docker Build Optimization**: Significant build time improvements (#36)
+  - BuildKit cache mounts for pip cache (70-80% faster subsequent builds)
+  - Removed `--no-cache-dir` flag to allow pip caching during build
+  - Cache persists across GitHub Actions runs using BuildKit cache
+  - First build: ~15-20 min, Subsequent builds: ~3-5 min
+- **Local Docker Testing**: New test script for validating Docker builds locally (#36)
+  - `scripts/test-docker-converter-local.sh` for pre-push validation
+  - Tests all dependencies (PyTorch, TensorFlow, Transformers, ONNX)
+  - Validates conversion scripts are present and executable
+
+### Fixed
+- **TensorFlow Installation**: Resolved TensorFlow import errors and CUDA conflicts (#36)
+  - Pinned protobuf to `<4.21,>=3.20` for TensorFlow 2.13+ compatibility
+  - Installed TensorFlow before PyTorch to avoid CUDA library conflicts
+  - Installed PyTorch CPU-only to prevent CUDA conflicts with TensorFlow
+  - Split pip install into separate steps for better error handling
+  - Added `TF_CPP_MIN_LOG_LEVEL=2` to suppress CUDA warnings in tests
+- **Docker Workflow Tests**: Improved test output with better error messages (#36)
+  - Added checkmarks (✅) to test output for better visibility
+  - Suppressed TensorFlow CUDA warnings in CI tests
+
+### Changed
+- **Docker Image**: Updated Docker image with optimized dependency installation (#36)
+  - Better installation order to prevent conflicts
+  - CPU-only builds for both PyTorch and TensorFlow to avoid CUDA issues
+  - Improved error handling and build reliability
+
+### Documentation
+- **Container Registry Options**: New documentation exploring alternatives to GHCR/Docker Hub (#36)
+  - `docs/CONTAINER_REGISTRY_OPTIONS.md` - Comprehensive guide to registry options
+  - Explores OCI artifacts, Quay.io, Docker Hub, and multi-registry strategies
+- **Docker Build Optimization**: Documentation explaining build optimizations (#36)
+  - `docs/DOCKER_BUILD_OPTIMIZATION.md` - Detailed explanation of build improvements
+  - Performance metrics and optimization strategies
+
 ## [2.0.2] - 2024-11-19
 
 ### Fixed
