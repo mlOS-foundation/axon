@@ -76,12 +76,38 @@ jobs:
         run: |
           echo "Image digest: ${{ steps.build.outputs.digest }}"
 
-      - name: Save Docker images as OCI artifacts
-        if: github.event_name == 'release'
+      - name: Determine release tag and version
+        id: release_info
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          # Extract version without 'v' prefix
-          VERSION=${VERSION#v}
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # From release event
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            VERSION=${TAG_NAME#v}
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # From workflow_dispatch - check if ref is a tag
+            REF="${{ github.ref }}"
+            if [[ "$REF" == refs/tags/* ]]; then
+              TAG_NAME=${REF#refs/tags/}
+              VERSION=${TAG_NAME#v}
+            elif [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "latest" ]; then
+              # Use provided version input
+              VERSION="${{ github.event.inputs.version }}"
+              TAG_NAME="v${VERSION}"
+            else
+              echo "⚠️  No release tag found. Skipping OCI artifact upload."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Release tag: ${TAG_NAME}, Version: ${VERSION}"
+
+      - name: Save Docker images as OCI artifacts
+        if: steps.release_info.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.release_info.outputs.version }}"
+          TAG_NAME="${{ steps.release_info.outputs.tag_name }}"
           IMAGE_TAG="${{ steps.meta.outputs.tags }}"
           # Extract first tag (comma-separated list)
           IMAGE_TAG=$(echo $IMAGE_TAG | cut -d',' -f1)
@@ -104,11 +130,11 @@ jobs:
           ls -lh axon-converter-*.tar.gz
 
       - name: Upload OCI artifacts to release
-        if: github.event_name == 'release'
+        if: steps.release_info.outputs.skip != 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: axon-converter-*.tar.gz
-          tag_name: ${{ github.event.release.tag_name }}
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
           draft: false
           prerelease: false
           body: |
@@ -117,13 +143,13 @@ jobs:
             **To load the image (choose the appropriate platform):**
             \`\`\`bash
             # For linux/amd64:
-            docker load < axon-converter-${VERSION}-linux-amd64.tar.gz
+            docker load < axon-converter-${{ steps.release_info.outputs.version }}-linux-amd64.tar.gz
             
             # For linux/arm64:
-            docker load < axon-converter-${VERSION}-linux-arm64.tar.gz
+            docker load < axon-converter-${{ steps.release_info.outputs.version }}-linux-arm64.tar.gz
             \`\`\`
             
             **Or pull from registry (Docker will automatically select the correct platform):**
             \`\`\`bash
-            docker pull ghcr.io/mlos-foundation/axon-converter:${VERSION}
+            docker pull ghcr.io/mlos-foundation/axon-converter:${{ steps.release_info.outputs.version }}
             \`\`\`
