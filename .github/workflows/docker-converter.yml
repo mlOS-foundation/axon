@@ -3,6 +3,8 @@ name: Build and Publish Docker Converter Image
 on:
   release:
     types: [ published ]
+  repository_dispatch:
+    types: [ build-docker-image ]
   workflow_dispatch:
     inputs:
       version:
@@ -31,6 +33,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine version from event
+        id: version_info
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            VERSION="${{ github.event.client_payload.tag }}"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "latest" ]; then
+              VERSION="${{ github.event.inputs.version }}"
+            else
+              VERSION="latest"
+            fi
+          fi
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Determined version: ${VERSION}"
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -39,8 +60,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event.action == 'published' }}
-            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
+            type=raw,value=latest,enable=${{ github.event.action == 'published' || github.event_name == 'repository_dispatch' }}
+            type=raw,value=${{ steps.version_info.outputs.version }},enable=${{ steps.version_info.outputs.version != 'latest' }}
 
       - name: Build and push Docker image
         id: build
@@ -83,6 +104,13 @@ jobs:
             # From release event
             TAG_NAME="${{ github.event.release.tag_name }}"
             VERSION=${TAG_NAME#v}
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            # From repository_dispatch - get from client_payload
+            TAG_NAME="${{ github.event.client_payload.tag }}"
+            VERSION="${{ github.event.client_payload.version }}"
+            if [ -z "$VERSION" ]; then
+              VERSION=${TAG_NAME#v}
+            fi
           elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # From workflow_dispatch - check if ref is a tag
             REF="${{ github.ref }}"
