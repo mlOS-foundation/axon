@@ -240,6 +240,7 @@ jobs:
           gh api repos/${{ github.repository }}/dispatches \
             -X POST \
             -f event_type='build-docker-image' \
-            -f client_payload='{"version": "${{ steps.get_version.outputs.version }}", "tag": "v${{ steps.get_version.outputs.version }}"}'
+            -f client_payload[version]="${{ steps.get_version.outputs.version }}" \
+            -f client_payload[tag]="v${{ steps.get_version.outputs.version }}"
           echo "✅ Docker converter workflow triggered"
 
