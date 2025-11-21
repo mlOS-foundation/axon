@@ -1,7 +1,4 @@
 # Multi-Framework ONNX Converter Docker Image
-# This image contains all Python dependencies needed for ONNX conversion
-# across all supported repositories (Hugging Face, PyTorch Hub, TensorFlow Hub, ModelScope)
-
 FROM python:3.11-slim
 
 # Install system dependencies
@@ -12,26 +9,36 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install all Python ML frameworks for ONNX conversion
-# This covers all default repositories supported by Axon
-# Using BuildKit cache mount for pip cache to speed up builds
-# Cache is used during build but not included in final image
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     # Install protobuf first (TensorFlow 2.13+ requires protobuf < 4.21)
     pip install "protobuf<4.21,>=3.20" && \
     # Install TensorFlow first (before PyTorch to avoid CUDA conflicts)
-    # TensorFlow defaults to CPU-only unless CUDA libraries are present
-    pip install tensorflow>=2.13.0 tf2onnx>=1.15.0 && \
-    # Install PyTorch CPU-only to avoid CUDA conflicts with TensorFlow
-    pip install torch --index-url https://download.pytorch.org/whl/cpu && \
-    # Install remaining packages
-    pip install \
-    transformers>=4.30.0 \
-    modelscope>=1.9.0 \
-    onnx>=1.14.0 \
-    onnxruntime>=1.18.0 \
-    numpy>=1.24.0 && \
-    # Clean pip cache after installation to reduce image size
+    pip install tensorflow>=2.13.0 \
+                tensorflow-hub>=0.15.0 \
+                tf2onnx>=1.15.0 && \
+    # Install PyTorch CPU-only to avoid CUDA conflicts
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    # Install Hugging Face with ONNX export support
+    pip install transformers>=4.30.0 \
+                optimum[exporters,onnxruntime]>=1.16.0 \
+                accelerate>=0.20.0 && \
+    # Install ModelScope
+    pip install modelscope>=1.9.0 && \
+    # Install ONNX tools
+    pip install onnx>=1.14.0 \
+                onnxruntime>=1.18.0 \
+                onnxscript>=0.1.0 && \
+    # Install additional ML frameworks
+    pip install scikit-learn>=1.3.0 \
+                skl2onnx>=1.16.0 \
+                xgboost>=2.0.0 \
+                onnxmltools>=1.12.0 && \
+    # Install utilities
+    pip install numpy>=1.24.0 \
+                pillow>=10.0.0 \
+                requests>=2.31.0 && \
+    # Clean pip cache
     pip cache purge || true
 
 # Create conversion scripts directory
@@ -46,7 +53,7 @@ RUN chmod +x /axon/scripts/*.py
 # Set working directory for model conversion
 WORKDIR /axon/cache
 
-# Default entrypoint (scripts will be called explicitly)
+# Default entrypoint
 ENTRYPOINT ["python3"]
 
 # Metadata
@@ -56,4 +63,3 @@ LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.source="https://github.com/mlOS-foundation/axon"
 LABEL org.opencontainers.image.url="https://github.com/mlOS-foundation/axon"
 LABEL org.opencontainers.image.vendor="mlOS Foundation"
-

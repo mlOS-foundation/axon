@@ -26,7 +26,7 @@ func NewDockerConverter() *DockerConverter {
 	}
 
 	return &DockerConverter{
-		imageName: "ghcr.io/mlOS-foundation/axon-converter:latest", // Default multi-framework image
+		imageName: "ghcr.io/mlos-foundation/axon-converter:latest", // Default multi-framework image
 		cacheDir:  cacheDir,
 	}
 }
@@ -46,10 +46,10 @@ func getDockerImageForRepository(namespace string) string {
 	// Repository-to-image mapping
 	// Can be extended for repository-specific images
 	repositoryImageMap := map[string]string{
-		"hf":      "ghcr.io/mlOS-foundation/axon-converter:latest", // Hugging Face (use default for now)
-		"pytorch": "ghcr.io/mlOS-foundation/axon-converter:latest", // PyTorch Hub
-		"tfhub":   "ghcr.io/mlOS-foundation/axon-converter:latest", // TensorFlow Hub
-		"ms":      "ghcr.io/mlOS-foundation/axon-converter:latest", // ModelScope
+		"hf":      "ghcr.io/mlos-foundation/axon-converter:latest", // Hugging Face (use default for now)
+		"pytorch": "ghcr.io/mlos-foundation/axon-converter:latest", // PyTorch Hub
+		"tfhub":   "ghcr.io/mlos-foundation/axon-converter:latest", // TensorFlow Hub
+		"ms":      "ghcr.io/mlos-foundation/axon-converter:latest", // ModelScope
 	}
 
 	if image, ok := repositoryImageMap[namespace]; ok {
@@ -57,11 +57,26 @@ func getDockerImageForRepository(namespace string) string {
 	}
 
 	// Default to multi-framework image
-	return "ghcr.io/mlOS-foundation/axon-converter:latest"
+	return "ghcr.io/mlos-foundation/axon-converter:latest"
 }
 
-// getConversionScript returns the conversion script name based on framework.
-func getConversionScript(framework string) string {
+// getConversionScript returns the conversion script name based on repository namespace and framework.
+// Prioritize namespace over framework for better accuracy.
+func getConversionScript(namespace, framework string) string {
+	// First, check repository namespace (most reliable)
+	namespaceLower := strings.ToLower(namespace)
+	switch namespaceLower {
+	case "hf", "huggingface":
+		return "convert_huggingface.py"
+	case "pytorch":
+		return "convert_pytorch.py"
+	case "tfhub", "tensorflow":
+		return "convert_tensorflow.py"
+	case "ms", "modelscope":
+		return "convert_huggingface.py" // ModelScope uses transformers-like API
+	}
+
+	// Fallback: check framework
 	frameworkLower := strings.ToLower(framework)
 	switch {
 	case frameworkLower == "huggingface" || frameworkLower == "transformers":
@@ -71,7 +86,7 @@ func getConversionScript(framework string) string {
 	case frameworkLower == "tensorflow" || frameworkLower == "tf":
 		return "convert_tensorflow.py"
 	default:
-		return "convert_huggingface.py" // Default
+		return "convert_huggingface.py" // Default to Hugging Face (most common)
 	}
 }
 
@@ -86,8 +101,8 @@ func ConvertToONNXWithDocker(ctx context.Context, modelPath, framework, namespac
 	// Get appropriate Docker image for this repository
 	imageName := getDockerImageForRepository(namespace)
 
-	// Get conversion script based on framework
-	scriptName := getConversionScript(framework)
+	// Get conversion script based on namespace and framework
+	scriptName := getConversionScript(namespace, framework)
 
 	// Resolve absolute paths for volume mounting
 	absCacheDir, err := filepath.Abs(filepath.Dir(modelPath))
