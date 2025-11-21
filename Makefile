@@ -2,7 +2,7 @@
 
 # Build variables
 BINARY_NAME=axon
-VERSION?=2.0.2
+VERSION?=3.0.0
 BUILD_DIR=bin
 GO_FILES=$(shell find . -name '*.go' -not -path './vendor/*')
 
