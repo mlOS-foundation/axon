@@ -80,23 +80,59 @@ axon update vision/resnet50
 axon uninstall vision/resnet50
 ```
 
+## 🚀 Universal ONNX Conversion (New!)
+
+Axon now features **universal ONNX conversion** with repository-specific strategies:
+
+### Multi-Framework Support
+- **Hugging Face** 🤗: GPT-2, BERT, T5, RoBERTa, DistilBERT - multi-strategy conversion using `optimum`, `torch.onnx.export`, and `transformers`
+- **PyTorch Hub** 🔥: ResNet, VGG, AlexNet - supports TorchScript, PyTorch Hub, and torchvision models
+- **TensorFlow Hub** 🧠: SavedModel, Keras H5, TF Hub models - using `tf2onnx` converter
+- **ModelScope** 🎨: Multimodal models with automatic framework detection
+
+### Enhanced Conversion Features
+✅ **Smart Repository Routing**: Automatic converter selection based on model namespace  
+✅ **Multi-Strategy Fallbacks**: Tries multiple conversion methods for maximum compatibility  
+✅ **Complex Model Support**: Handles models with cache, tuples, and complex outputs  
+✅ **Optimized Docker Image**: Single multi-framework image for all conversions  
+
+### Example: Seamless Conversion
+```bash
+# Hugging Face models → uses optimum + torch.onnx.export
+axon install hf/gpt2@latest          # Converts to ONNX automatically
+axon install hf/bert-base-uncased@latest
+
+# PyTorch Hub models → uses TorchScript + torchvision
+axon install pytorch/vision/resnet50@latest
+
+# TensorFlow models → uses tf2onnx
+axon install tfhub/google/universal-sentence-encoder/4@latest
+
+# All models are automatically converted to optimized ONNX format!
+```
+
 ## 🔗 MLOS Core Integration
 
 Axon integrates seamlessly with MLOS Core for kernel-level model execution:
 
 ```bash
-# 1. Install model with Axon
+# 1. Install model with Axon (auto-converts to ONNX)
 axon install hf/bert-base-uncased@latest
 
 # 2. Register with MLOS Core
 axon register hf/bert-base-uncased@latest
 
-# 3. Model is now ready for kernel-level inference via MLOS Core API
-# See docs/E2E_INTEGRATION.md for complete workflow
+# 3. Run inference with enhanced multi-type tensor support
+curl -X POST http://localhost:8080/models/hf%2Fbert-base-uncased%40latest/inference \
+  -H "Content-Type: application/json" \
+  -d '{"input_ids": [101, 7592, 102], "attention_mask": [1, 1, 1]}'
+
+# ✨ Supports int64, float32, int32, bool tensors and multi-input models!
 ```
 
 **How It Works:**
 - Axon installs models as standardized packages (Model Package Format - MPF)
+- Automatic ONNX conversion with repository-specific strategies
 - `axon register` sends the model manifest path to MLOS Core
 - MLOS Core reads the Axon manifest and prepares the model for execution
 - Models can then be used via MLOS Core's HTTP/gRPC/IPC APIs
