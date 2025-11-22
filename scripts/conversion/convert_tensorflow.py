@@ -209,7 +209,7 @@ def convert_tensorflow_to_onnx(model_path, output_path, axon_model_id):
         
         # If model_path exists, try file-based conversions first
         if os.path.exists(model_path):
-            if os.path.isdir(model_path):
+        if os.path.isdir(model_path):
                 strategies.append(lambda: try_saved_model_conversion(model_path, output_path))
                 strategies.append(lambda: try_keras_model_conversion(model_path, output_path))
             elif os.path.isfile(model_path):

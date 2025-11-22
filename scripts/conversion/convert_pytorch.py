@@ -103,7 +103,7 @@ def try_load_torch_script(model_path, output_path):
         
         if os.path.exists(output_path):
             print('✅ SUCCESS (TorchScript)')
-            return True
+                return True
         
         return False
         
@@ -199,7 +199,7 @@ def try_torchvision_model(model_id, output_path):
                 return True
         
         return False
-        
+                
     except Exception as e:
         print(f'⚠️  torchvision load failed: {str(e)}')
         return False
