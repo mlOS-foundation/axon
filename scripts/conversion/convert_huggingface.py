@@ -22,12 +22,20 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 def extract_hf_model_id(axon_model_id):
     """Extract Hugging Face model ID from Axon format."""
-    # Format: "hf/model_name@version" -> "model_name"
+    # The Go code already strips the 'hf/' prefix, so we receive:
+    # - "microsoft/resnet-50" (org/model format)
+    # - "distilgpt2" (simple model name)
+    # We should only strip 'hf/' prefix if present (legacy format)
     hf_model_id = axon_model_id
-    if '/' in axon_model_id:
-        hf_model_id = axon_model_id.split('/', 1)[1]
+    
+    # Only strip if it explicitly starts with 'hf/'
+    if hf_model_id.startswith('hf/'):
+        hf_model_id = hf_model_id[3:]  # Remove 'hf/' prefix
+    
+    # Strip version if present
     if '@' in hf_model_id:
         hf_model_id = hf_model_id.split('@')[0]
+    
     return hf_model_id
 
 def try_optimum_export(model_path, output_path, hf_model_id):
