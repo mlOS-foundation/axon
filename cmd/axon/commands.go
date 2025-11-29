@@ -25,6 +25,20 @@ import (
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
+// safeTempFileName creates a safe filename for temp files by replacing path separators
+// This prevents issues with model IDs containing slashes (e.g., "hf/microsoft/resnet-50")
+// which would otherwise create nested directories in the temp path.
+func safeTempFileName(namespace, name, version string) string {
+	// Replace path separators and other problematic characters
+	safeNamespace := strings.ReplaceAll(namespace, "/", "_")
+	safeNamespace = strings.ReplaceAll(safeNamespace, "\\", "_")
+	safeName := strings.ReplaceAll(name, "/", "_")
+	safeName = strings.ReplaceAll(safeName, "\\", "_")
+	safeVersion := strings.ReplaceAll(version, "/", "_")
+	safeVersion = strings.ReplaceAll(safeVersion, "\\", "_")
+	return fmt.Sprintf("%s-%s-%s.axon", safeNamespace, safeName, safeVersion)
+}
+
 // updateManifestAfterInstall updates manifest with execution format and I/O schema after model installation
 func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
 	// Update execution format based on available files
@@ -467,7 +481,8 @@ func installCmd() *cobra.Command {
 			}
 
 			// Download package to temp location first
-			tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("%s-%s-%s.axon", namespace, name, version))
+			// Use safeTempFileName to handle model IDs with slashes (e.g., "hf/microsoft/resnet-50")
+			tmpFile := filepath.Join(os.TempDir(), safeTempFileName(namespace, name, version))
 			fmt.Printf("📦 Package will be created at: %s\n", tmpFile)
 
 			progress := func(downloaded, total int64) {
