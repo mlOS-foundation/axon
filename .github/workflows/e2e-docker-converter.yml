@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - 'docker/Dockerfile.base'
       - 'docker/Dockerfile.converter'
       - 'scripts/conversion/**'
       - 'internal/converter/docker.go'
@@ -23,9 +24,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build base image (required for converter)
+        run: |
+          echo "🔨 Building axon-base image..."
+          docker build -f docker/Dockerfile.base -t axon-base:local .
+          echo "✅ Base image built successfully"
+
       - name: Build Docker converter image locally
         run: |
-          docker build -f docker/Dockerfile.converter -t axon-converter:test .
+          docker build -f docker/Dockerfile.converter -t axon-converter:test \
+            --build-arg BASE_IMAGE=axon-base:local .
 
       - name: Test Docker converter image
         run: |
