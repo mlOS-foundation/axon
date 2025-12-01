@@ -100,6 +100,11 @@ jobs:
             BUILD_DATE=${{ github.event.repository.updated_at }}
             VERSION=${{ steps.version.outputs.version }}
 
+      # NOTE: Package visibility must be set to 'public' manually via GitHub UI (one-time setup)
+      # Go to: https://github.com/orgs/mlOS-foundation/packages/container/axon-base/settings
+      # Click: Change visibility → Public
+      # This is required because GITHUB_TOKEN cannot modify package visibility
+
       - name: Test base image
         run: |
           IMAGE_TAG="ghcr.io/mlos-foundation/axon-base:${{ steps.version.outputs.version }}"
