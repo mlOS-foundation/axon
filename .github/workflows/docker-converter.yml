@@ -11,6 +11,10 @@ on:
         description: 'Image version tag'
         required: false
         default: 'latest'
+      base_version:
+        description: 'Base image version to use'
+        required: false
+        default: 'latest'
 
 permissions:
   contents: write
@@ -22,6 +26,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,6 +70,14 @@ jobs:
             type=raw,value=latest,enable=${{ github.event.action == 'published' || github.event_name == 'repository_dispatch' }}
             type=raw,value=${{ steps.version_info.outputs.version }},enable=${{ steps.version_info.outputs.version != 'latest' }}
 
+      - name: Determine base image
+        id: base
+        run: |
+          BASE_VERSION="${{ github.event.inputs.base_version || 'latest' }}"
+          BASE_IMAGE="ghcr.io/mlos-foundation/axon-base:${BASE_VERSION}"
+          echo "base_image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
+          echo "Using base image: ${BASE_IMAGE}"
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -75,6 +90,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.base_image }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VERSION=${{ steps.version_info.outputs.version }}
 
       - name: Test Docker image
         run: |

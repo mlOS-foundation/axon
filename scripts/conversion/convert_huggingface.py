@@ -10,15 +10,266 @@ Arguments:
     model_path: Path to the model directory (from Axon cache)
     output_path: Where to save the converted ONNX file
     model_id: Axon model identifier (e.g., "hf/distilgpt2@latest")
+
+Supported Model Types:
+    Vision (Image Classification):
+        ResNet, ViT, DeiT, BEiT, Swin, ConvNeXt, EfficientNet, VGG,
+        MobileNet, MobileViT, RegNet, DINOv2, PoolFormer, LeViT,
+        CvT, FocalNet, BiT, Data2Vec Vision, NAT, PVT, VAN, DenseNet
+    
+    Vision (Object Detection):
+        DETR, YOLOS, Conditional DETR, Deformable DETR, DETA, RT-DETR
+    
+    Vision (Segmentation):
+        SegFormer, MaskFormer, Mask2Former, UperNet, OneFormer
+    
+    Vision (Depth Estimation):
+        DPT, GLPN, Depth Anything
+    
+    NLP (Text Generation):
+        GPT-2, GPT-Neo, GPT-NeoX, GPT-J, Llama, Mistral, Phi-3, OPT, Bloom
+    
+    NLP (Fill Mask):
+        BERT, RoBERTa, DistilBERT, ALBERT, ELECTRA, DeBERTa, XLM-RoBERTa
+    
+    NLP (Text2Text):
+        T5, BART, MT5, MBart, Pegasus
+    
+    Multimodal:
+        CLIP, BLIP, BLIP-2
+    
+    Audio:
+        Wav2Vec2, Whisper, Hubert
+
+Conversion Strategies (tried in order):
+    1. Optimum ONNX export (recommended, handles most models)
+    2. torch.onnx.export (fallback for unsupported models)
+    3. torch.jit.trace + ONNX (last resort)
 """
 
 import sys
 import os
+import json
 import warnings
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# Task mapping from model architecture/config to Optimum task
+# This is used when task='auto' fails (especially for local directories)
+# Comprehensive mapping for vision, NLP, audio, and multimodal models
+TASK_MAPPING = {
+    # ═══════════════════════════════════════════════════════════════════════
+    # VISION MODELS - Image Classification
+    # ═══════════════════════════════════════════════════════════════════════
+    # ResNet family
+    'ResNetConfig': 'image-classification',
+    'ResNetForImageClassification': 'image-classification',
+    
+    # Vision Transformer (ViT) family
+    'ViTConfig': 'image-classification',
+    'ViTForImageClassification': 'image-classification',
+    'ViTMAEConfig': 'image-classification',
+    'ViTMSNConfig': 'image-classification',
+    
+    # DeiT (Data-efficient Image Transformer)
+    'DeiTConfig': 'image-classification',
+    'DeiTForImageClassification': 'image-classification',
+    
+    # BEiT (BERT pre-training of Image Transformers)
+    'BeitConfig': 'image-classification',
+    'BeitForImageClassification': 'image-classification',
+    
+    # Swin Transformer family
+    'SwinConfig': 'image-classification',
+    'SwinForImageClassification': 'image-classification',
+    'Swinv2Config': 'image-classification',
+    'Swinv2ForImageClassification': 'image-classification',
+    
+    # ConvNeXt family
+    'ConvNextConfig': 'image-classification',
+    'ConvNextForImageClassification': 'image-classification',
+    'ConvNextV2Config': 'image-classification',
+    'ConvNextV2ForImageClassification': 'image-classification',
+    
+    # EfficientNet
+    'EfficientNetConfig': 'image-classification',
+    'EfficientNetForImageClassification': 'image-classification',
+    
+    # VGG
+    'VGGConfig': 'image-classification',
+    
+    # MobileNet family
+    'MobileNetV1Config': 'image-classification',
+    'MobileNetV2Config': 'image-classification',
+    'MobileNetV2ForImageClassification': 'image-classification',
+    'MobileViTConfig': 'image-classification',
+    'MobileViTForImageClassification': 'image-classification',
+    'MobileViTV2Config': 'image-classification',
+    
+    # RegNet
+    'RegNetConfig': 'image-classification',
+    'RegNetForImageClassification': 'image-classification',
+    
+    # DINOv2
+    'Dinov2Config': 'image-classification',
+    'Dinov2ForImageClassification': 'image-classification',
+    
+    # PoolFormer
+    'PoolFormerConfig': 'image-classification',
+    'PoolFormerForImageClassification': 'image-classification',
+    
+    # LeViT
+    'LevitConfig': 'image-classification',
+    'LevitForImageClassification': 'image-classification',
+    
+    # CvT (Convolutional Vision Transformer)
+    'CvtConfig': 'image-classification',
+    'CvtForImageClassification': 'image-classification',
+    
+    # FocalNet
+    'FocalNetConfig': 'image-classification',
+    
+    # BiT (Big Transfer)
+    'BitConfig': 'image-classification',
+    'BitForImageClassification': 'image-classification',
+    
+    # Data2Vec Vision
+    'Data2VecVisionConfig': 'image-classification',
+    'Data2VecVisionForImageClassification': 'image-classification',
+    
+    # NAT (Neighborhood Attention Transformer)
+    'NatConfig': 'image-classification',
+    'NatForImageClassification': 'image-classification',
+    'DinatConfig': 'image-classification',
+    
+    # PVT (Pyramid Vision Transformer)
+    'PvtConfig': 'image-classification',
+    'PvtV2Config': 'image-classification',
+    
+    # VAN (Visual Attention Network)
+    'VanConfig': 'image-classification',
+    
+    # DenseNet
+    'DenseNetConfig': 'image-classification',
+    
+    # Inception
+    'InceptionV3Config': 'image-classification',
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # VISION MODELS - Object Detection
+    # ═══════════════════════════════════════════════════════════════════════
+    'DetrConfig': 'object-detection',
+    'DetrForObjectDetection': 'object-detection',
+    'YolosConfig': 'object-detection',
+    'YolosForObjectDetection': 'object-detection',
+    'ConditionalDetrConfig': 'object-detection',
+    'DeformableDetrConfig': 'object-detection',
+    'DetaConfig': 'object-detection',
+    'GroundingDinoConfig': 'object-detection',
+    'RTDetrConfig': 'object-detection',
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # VISION MODELS - Semantic/Instance Segmentation
+    # ═══════════════════════════════════════════════════════════════════════
+    'SegformerConfig': 'semantic-segmentation',
+    'SegformerForSemanticSegmentation': 'semantic-segmentation',
+    'MaskFormerConfig': 'semantic-segmentation',
+    'Mask2FormerConfig': 'semantic-segmentation',
+    'UperNetConfig': 'semantic-segmentation',
+    'OneFormerConfig': 'semantic-segmentation',
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # VISION MODELS - Depth Estimation
+    # ═══════════════════════════════════════════════════════════════════════
+    'DPTConfig': 'depth-estimation',
+    'GLPNConfig': 'depth-estimation',
+    'DepthAnythingConfig': 'depth-estimation',
+    
+    # NLP - Text Generation
+    'GPT2Config': 'text-generation',
+    'GPTNeoConfig': 'text-generation',
+    'GPTNeoXConfig': 'text-generation',
+    'GPTJConfig': 'text-generation',
+    'LlamaConfig': 'text-generation',
+    'MistralConfig': 'text-generation',
+    'Phi3Config': 'text-generation',
+    'OPTConfig': 'text-generation',
+    'BloomConfig': 'text-generation',
+    
+    # NLP - Fill Mask (MLM)
+    'BertConfig': 'fill-mask',
+    'RobertaConfig': 'fill-mask',
+    'DistilBertConfig': 'fill-mask',
+    'AlbertConfig': 'fill-mask',
+    'ElectraConfig': 'fill-mask',
+    'CamembertConfig': 'fill-mask',
+    'XLMRobertaConfig': 'fill-mask',
+    'DebertaConfig': 'fill-mask',
+    'DebertaV2Config': 'fill-mask',
+    
+    # NLP - Text2Text Generation (Encoder-Decoder)
+    'T5Config': 'text2text-generation',
+    'BartConfig': 'text2text-generation',
+    'MT5Config': 'text2text-generation',
+    'MBartConfig': 'text2text-generation',
+    'PegasusConfig': 'text2text-generation',
+    
+    # NLP - Sequence Classification
+    'XLNetConfig': 'text-classification',
+    
+    # NLP - Feature Extraction (generic)
+    'MPNetConfig': 'feature-extraction',
+    'SentenceTransformersConfig': 'feature-extraction',
+    
+    # Multi-Modal
+    'CLIPConfig': 'zero-shot-image-classification',
+    'CLIPTextConfig': 'feature-extraction',
+    'CLIPVisionConfig': 'image-classification',
+    'BlipConfig': 'image-to-text',
+    'Blip2Config': 'image-to-text',
+    
+    # Audio
+    'Wav2Vec2Config': 'automatic-speech-recognition',
+    'WhisperConfig': 'automatic-speech-recognition',
+    'HubertConfig': 'automatic-speech-recognition',
+}
+
+# Model class mapping for proper loading
+# Maps Optimum task names to the correct AutoModel class
+MODEL_CLASS_MAPPING = {
+    # ═══════════════════════════════════════════════════════════════════════
+    # Vision models - need specific classes, not AutoModel
+    # ═══════════════════════════════════════════════════════════════════════
+    'image-classification': 'AutoModelForImageClassification',
+    'object-detection': 'AutoModelForObjectDetection',
+    'semantic-segmentation': 'AutoModelForSemanticSegmentation',
+    'depth-estimation': 'AutoModelForDepthEstimation',
+    'zero-shot-image-classification': 'AutoModel',
+    'image-to-text': 'AutoModelForVision2Seq',
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # NLP models
+    # ═══════════════════════════════════════════════════════════════════════
+    'text-generation': 'AutoModelForCausalLM',
+    'fill-mask': 'AutoModelForMaskedLM',
+    'text2text-generation': 'AutoModelForSeq2SeqLM',
+    'text-classification': 'AutoModelForSequenceClassification',
+    'token-classification': 'AutoModelForTokenClassification',
+    'question-answering': 'AutoModelForQuestionAnswering',
+    'feature-extraction': 'AutoModel',
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # Audio models
+    # ═══════════════════════════════════════════════════════════════════════
+    'automatic-speech-recognition': 'AutoModelForSpeechSeq2Seq',
+    'audio-classification': 'AutoModelForAudioClassification',
+    
+    # Default fallback
+    'default': 'AutoModel',
+}
+
 
 def extract_hf_model_id(axon_model_id):
     """Extract Hugging Face model ID from Axon format."""
@@ -38,7 +289,64 @@ def extract_hf_model_id(axon_model_id):
     
     return hf_model_id
 
-def try_optimum_export(model_path, output_path, hf_model_id):
+
+def detect_task_from_config(model_path):
+    """
+    Detect the appropriate task from model config file.
+    Returns task string or None if cannot be determined.
+    """
+    config_path = os.path.join(model_path, 'config.json')
+    
+    if not os.path.exists(config_path):
+        print(f'   No config.json found at {model_path}')
+        return None
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # Check for architectures field first (most reliable)
+        architectures = config.get('architectures', [])
+        for arch in architectures:
+            if arch in TASK_MAPPING:
+                task = TASK_MAPPING[arch]
+                print(f'   Detected task from architecture: {arch} → {task}')
+                return task
+        
+        # Check for model_type field
+        model_type = config.get('model_type', '')
+        config_class_name = f"{model_type.title().replace('-', '').replace('_', '')}Config"
+        
+        if config_class_name in TASK_MAPPING:
+            task = TASK_MAPPING[config_class_name]
+            print(f'   Detected task from model_type: {model_type} → {task}')
+            return task
+        
+        # Check for auto_map which may have the class name
+        auto_map = config.get('auto_map', {})
+        for key, value in auto_map.items():
+            # value might be like "modeling_mymodel.MyModelForImageClassification"
+            class_name = value.split('.')[-1] if '.' in value else value
+            if class_name in TASK_MAPPING:
+                task = TASK_MAPPING[class_name]
+                print(f'   Detected task from auto_map: {class_name} → {task}')
+                return task
+        
+        print(f'   Could not detect task from config (architectures: {architectures}, model_type: {model_type})')
+        return None
+        
+    except Exception as e:
+        print(f'   Error reading config.json: {e}')
+        return None
+
+
+def get_model_class(task):
+    """Get the appropriate model class for a given task."""
+    class_name = MODEL_CLASS_MAPPING.get(task, MODEL_CLASS_MAPPING['default'])
+    return class_name
+
+
+def try_optimum_export(model_path, output_path, hf_model_id, task=None):
     """
     Strategy 1: Use Optimum library (best for transformers models).
     This is the recommended approach for Hugging Face models.
@@ -55,10 +363,22 @@ def try_optimum_export(model_path, output_path, hf_model_id):
         # Try loading from local path first
         model_name_or_path = model_path if os.path.isdir(model_path) else hf_model_id
         
+        # Detect task if not provided
+        if task is None or task == 'auto':
+            detected_task = detect_task_from_config(model_path)
+            if detected_task:
+                task = detected_task
+            else:
+                # Fallback to 'auto' and let Optimum try
+                task = 'auto'
+        
+        print(f'   Using task: {task}')
+        print(f'   Model path: {model_name_or_path}')
+        
         main_export(
             model_name_or_path=model_name_or_path,
             output=output_dir,
-            task='auto',
+            task=task,
             opset=14,
             device='cpu',
             fp16=False,
@@ -82,15 +402,264 @@ def try_optimum_export(model_path, output_path, hf_model_id):
         print(f'⚠️  Optimum export failed: {str(e)}')
         return False
 
-def try_torch_jit_trace(model, dummy_input, output_path):
+
+def load_model_and_tokenizer(model_path, hf_model_id, task=None):
     """
-    Strategy 2: Use torch.jit.trace + ONNX export.
+    Load model and tokenizer/processor with proper class based on task.
+    Includes fallback for safetensors UTF-8 issues.
+    """
+    from transformers import AutoTokenizer, AutoImageProcessor
+    import transformers
+    
+    # Detect task if not provided
+    if task is None:
+        task = detect_task_from_config(model_path)
+    
+    # Get appropriate model class
+    model_class_name = get_model_class(task)
+    print(f'   Using model class: {model_class_name} (task: {task})')
+    
+    # Get the model class from transformers
+    model_class = getattr(transformers, model_class_name, None)
+    if model_class is None:
+        print(f'   Model class {model_class_name} not found, falling back to AutoModel')
+        from transformers import AutoModel
+        model_class = AutoModel
+    
+    # Determine if this is a vision model
+    is_vision_task = task in [
+        'image-classification', 
+        'object-detection', 
+        'semantic-segmentation',
+        'depth-estimation',
+        'zero-shot-image-classification',
+        'image-to-text',
+    ]
+    
+    # Try loading with different configurations
+    load_configs = [
+        {'local_files_only': True},  # Try local first
+        {'local_files_only': True, 'use_safetensors': False},  # Try without safetensors
+        {},  # Try from Hub
+        {'use_safetensors': False},  # Try from Hub without safetensors
+    ]
+    
+    model = None
+    last_error = None
+    
+    for config in load_configs:
+        try:
+            # First try local path
+            load_path = model_path if os.path.isdir(model_path) else hf_model_id
+            if 'local_files_only' not in config and os.path.isdir(model_path):
+                load_path = hf_model_id  # Force Hub for non-local attempts
+            
+            print(f'   Trying to load from: {load_path} with config: {config}')
+            model = model_class.from_pretrained(load_path, **config)
+            print(f'   ✅ Model loaded successfully')
+            break
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            if 'utf-8' in error_str or 'safetensor' in error_str:
+                print(f'   ⚠️  SafeTensors UTF-8 error, will try without safetensors...')
+            elif 'local' in error_str or 'not found' in error_str:
+                print(f'   ⚠️  Local load failed, will try Hub...')
+            else:
+                print(f'   ⚠️  Load failed: {str(e)[:100]}...')
+    
+    if model is None:
+        raise RuntimeError(f'Failed to load model after all attempts: {last_error}')
+    
+    # Load tokenizer or processor
+    processor = None
+    try:
+        if is_vision_task:
+            # Try image processor first for vision models
+            try:
+                processor = AutoImageProcessor.from_pretrained(
+                    model_path if os.path.isdir(model_path) else hf_model_id,
+                    local_files_only=os.path.isdir(model_path)
+                )
+                print('   ✅ Image processor loaded')
+            except:
+                print('   ⚠️  No image processor found')
+        else:
+            # Load tokenizer for NLP models
+            processor = AutoTokenizer.from_pretrained(
+                model_path if os.path.isdir(model_path) else hf_model_id,
+                local_files_only=os.path.isdir(model_path)
+            )
+            print('   ✅ Tokenizer loaded')
+    except Exception as e:
+        print(f'   ⚠️  Processor/Tokenizer load failed: {str(e)[:100]}')
+    
+    return model, processor, task
+
+
+def create_dummy_input(model, task, processor=None):
+    """Create appropriate dummy input based on task type."""
+    import torch
+    
+    config = model.config
+    
+    # All vision tasks that need image tensors
+    vision_tasks = [
+        'image-classification', 
+        'object-detection', 
+        'semantic-segmentation',
+        'depth-estimation',
+        'image-to-text',
+    ]
+    
+    if task in vision_tasks:
+        # Standard ImageNet input size, but check config for model-specific sizes
+        batch_size = 1
+        channels = 3
+        
+        # Try to get image size from config (different models use different attribute names)
+        height = getattr(config, 'image_size', None) or \
+                 getattr(config, 'img_size', None) or \
+                 getattr(config, 'sample_size', None) or \
+                 224
+        width = height
+        
+        # Handle tuple/list image sizes
+        if isinstance(height, (list, tuple)):
+            height, width = height[0], height[-1]
+        
+        # Ensure integer values
+        height = int(height)
+        width = int(width)
+        
+        print(f'   Creating vision input: ({batch_size}, {channels}, {height}, {width})')
+        dummy_input = torch.randn(batch_size, channels, height, width)
+        input_names = ['pixel_values']
+        
+        # Output names vary by task
+        if task == 'object-detection':
+            output_names = ['logits', 'pred_boxes']
+        elif task in ['semantic-segmentation', 'depth-estimation']:
+            output_names = ['logits']
+        else:
+            output_names = ['logits']
+        
+        dynamic_axes = {
+            'pixel_values': {0: 'batch_size'},
+        }
+        for name in output_names:
+            dynamic_axes[name] = {0: 'batch_size'}
+        
+        return dummy_input, input_names, dynamic_axes
+    
+    elif task == 'zero-shot-image-classification':
+        # CLIP-style models need both image and text
+        batch_size = 1
+        height = getattr(config, 'vision_config', config).get('image_size', 224) if hasattr(config, 'vision_config') else 224
+        
+        pixel_values = torch.randn(batch_size, 3, height, height)
+        input_ids = torch.randint(0, 1000, (batch_size, 77))
+        attention_mask = torch.ones(batch_size, 77, dtype=torch.long)
+        
+        print(f'   Creating multimodal input: image ({batch_size}, 3, {height}, {height}) + text ({batch_size}, 77)')
+        return {
+            'pixel_values': pixel_values,
+            'input_ids': input_ids,
+            'attention_mask': attention_mask
+        }, ['pixel_values', 'input_ids', 'attention_mask'], {}
+    
+    else:
+        # NLP models - text input
+        seq_len = min(128, getattr(config, 'max_position_embeddings', 128))
+        vocab_size = getattr(config, 'vocab_size', 30522)
+        
+        print(f'   Creating text input: (1, {seq_len}), vocab_size={vocab_size}')
+        dummy_input = torch.randint(0, vocab_size, (1, seq_len))
+        input_names = ['input_ids']
+        dynamic_axes = {
+            'input_ids': {0: 'batch_size', 1: 'sequence_length'},
+            'output': {0: 'batch_size'}
+        }
+        return dummy_input, input_names, dynamic_axes
+
+
+def try_torch_export(model, dummy_input, output_path, input_names, dynamic_axes, task):
+    """
+    Strategy 2: Use torch.onnx.export with proper handling for different model types.
+    """
+    try:
+        import torch
+        
+        print('🔄 Strategy 2: Trying torch.onnx.export...')
+        
+        model.eval()
+        
+        # Handle dict inputs (multimodal)
+        if isinstance(dummy_input, dict):
+            # Create tuple of inputs in order
+            input_tuple = tuple(dummy_input.values())
+            
+            torch.onnx.export(
+                model,
+                input_tuple,
+                output_path,
+                input_names=input_names,
+                output_names=['logits'],
+                dynamic_axes=dynamic_axes,
+                opset_version=14,
+                do_constant_folding=True,
+                export_params=True,
+                verbose=False,
+            )
+        else:
+            # For vision models, wrap input properly
+            vision_tasks = [
+                'image-classification', 'object-detection', 'semantic-segmentation',
+                'depth-estimation', 'image-to-text'
+            ]
+            if task in vision_tasks:
+                output_names = ['logits']
+            else:
+                output_names = ['output']
+            
+            torch.onnx.export(
+                model,
+                dummy_input,
+                output_path,
+                input_names=input_names,
+                output_names=output_names,
+                dynamic_axes=dynamic_axes,
+                opset_version=14,
+                do_constant_folding=True,
+                export_params=True,
+                verbose=False,
+            )
+        
+        if os.path.exists(output_path):
+            print('✅ SUCCESS (torch.onnx.export)')
+            return True
+        
+        return False
+        
+    except Exception as e:
+        print(f'⚠️  torch.onnx.export failed: {str(e)}')
+        return False
+
+
+def try_torch_jit_trace(model, dummy_input, output_path, input_names, dynamic_axes):
+    """
+    Strategy 3: Use torch.jit.trace + ONNX export.
     Works well for models without dynamic control flow.
     """
     try:
         import torch
         
-        print('🔄 Strategy 2: Trying torch.jit.trace + ONNX export...')
+        print('🔄 Strategy 3: Trying torch.jit.trace + ONNX export...')
+        
+        # Skip for dict inputs
+        if isinstance(dummy_input, dict):
+            print('   Skipping JIT trace for dict inputs')
+            return False
         
         # Trace the model
         traced_model = torch.jit.trace(model, dummy_input)
@@ -100,10 +669,9 @@ def try_torch_jit_trace(model, dummy_input, output_path):
             traced_model,
             dummy_input,
             output_path,
-            input_names=['input_ids'],
+            input_names=input_names,
             output_names=['output'],
-            dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence_length'}, 
-                         'output': {0: 'batch_size'}},
+            dynamic_axes=dynamic_axes,
             opset_version=14,
             do_constant_folding=True,
         )
@@ -118,109 +686,10 @@ def try_torch_jit_trace(model, dummy_input, output_path):
         print(f'⚠️  torch.jit.trace failed: {str(e)}')
         return False
 
-def try_legacy_torch_export(model, dummy_input, output_path, config):
-    """
-    Strategy 3: Use legacy torch.onnx.export with model wrapper.
-    Handles models with complex outputs (tuples, dicts).
-    """
-    try:
-        import torch
-        
-        print('🔄 Strategy 3: Trying legacy torch.onnx.export...')
-        
-        # Wrap model to handle complex outputs
-        class ModelWrapper(torch.nn.Module):
-            def __init__(self, model, config):
-                super().__init__()
-                self.model = model
-                self.config = config
-            
-            def forward(self, input_ids):
-                # Try different forward signatures based on model type
-                try:
-                    # For decoder models (GPT-2, etc.) - disable cache
-                    if hasattr(self.config, 'is_decoder') and self.config.is_decoder:
-                        output = self.model(input_ids, use_cache=False, return_dict=False)
-                    else:
-                        # For encoder models (BERT, etc.)
-                        output = self.model(input_ids, return_dict=False)
-                    
-                    # Extract first element if tuple
-                    if isinstance(output, tuple):
-                        return output[0]
-                    return output
-                except:
-                    # Fallback: simplest call
-                    output = self.model(input_ids)
-                    if isinstance(output, tuple):
-                        return output[0]
-                    return output
-        
-        wrapped_model = ModelWrapper(model, config)
-        
-        # Use legacy exporter (more compatible)
-        torch.onnx.export(
-            wrapped_model,
-            dummy_input,
-            output_path,
-            input_names=['input_ids'],
-            output_names=['logits'],
-            dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence_length'}, 
-                         'logits': {0: 'batch_size'}},
-            opset_version=14,
-            do_constant_folding=True,
-            export_params=True,
-            verbose=False,
-        )
-        
-        if os.path.exists(output_path):
-            print('✅ SUCCESS (legacy torch.onnx.export)')
-            return True
-        
-        return False
-        
-    except Exception as e:
-        print(f'⚠️  Legacy export failed: {str(e)}')
-        return False
-
-def try_direct_onnx_export(model, dummy_input, output_path):
-    """
-    Strategy 4: Direct torch.onnx.export without wrapper.
-    Simple approach for basic models.
-    """
-    try:
-        import torch
-        
-        print('🔄 Strategy 4: Trying direct torch.onnx.export...')
-        
-        torch.onnx.export(
-            model,
-            dummy_input,
-            output_path,
-            input_names=['input_ids'],
-            output_names=['output'],
-            dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence_length'}, 
-                         'output': {0: 'batch_size'}},
-            opset_version=14,
-            do_constant_folding=True,
-            export_params=True,
-            verbose=False,
-        )
-        
-        if os.path.exists(output_path):
-            print('✅ SUCCESS (direct export)')
-            return True
-        
-        return False
-        
-    except Exception as e:
-        print(f'⚠️  Direct export failed: {str(e)}')
-        return False
 
 def convert_huggingface_to_onnx(model_path, output_path, axon_model_id):
     """Convert a Hugging Face model to ONNX using multiple strategies."""
     try:
-        from transformers import AutoModel, AutoTokenizer
         import torch
         
         # Create output directory
@@ -228,39 +697,28 @@ def convert_huggingface_to_onnx(model_path, output_path, axon_model_id):
         
         # Extract HF model ID
         hf_model_id = extract_hf_model_id(axon_model_id)
-        print(f'📦 Loading model: {hf_model_id} (Axon ID: {axon_model_id})')
+        print(f'📦 Converting model: {hf_model_id} (Axon ID: {axon_model_id})')
+        
+        # Detect task first
+        detected_task = detect_task_from_config(model_path)
+        print(f'   Detected task: {detected_task}')
         
         # Strategy 1: Try Optimum first (doesn't need model loading)
-        if try_optimum_export(model_path, output_path, hf_model_id):
+        if try_optimum_export(model_path, output_path, hf_model_id, task=detected_task):
             return True
         
         # Load model for other strategies
         print('📥 Loading model with transformers...')
-        try:
-            if os.path.isdir(model_path):
-                model = AutoModel.from_pretrained(model_path, local_files_only=True)
-                tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-                print('   Loaded from local path')
-            else:
-                raise FileNotFoundError('Not a directory')
-        except:
-            print(f'   Loading from Hugging Face Hub: {hf_model_id}')
-            model = AutoModel.from_pretrained(hf_model_id)
-            tokenizer = AutoTokenizer.from_pretrained(hf_model_id)
-        
+        model, processor, task = load_model_and_tokenizer(model_path, hf_model_id, detected_task)
         model.eval()
         
-        # Prepare dummy input
-        config = model.config
-        seq_len = min(128, getattr(config, 'max_position_embeddings', 128))
-        vocab_size = getattr(config, 'vocab_size', 30522)
-        dummy_input = torch.randint(0, vocab_size, (1, seq_len))
+        # Create appropriate dummy input
+        dummy_input, input_names, dynamic_axes = create_dummy_input(model, task, processor)
         
         # Try remaining strategies in order
         strategies = [
-            lambda: try_torch_jit_trace(model, dummy_input, output_path),
-            lambda: try_legacy_torch_export(model, dummy_input, output_path, config),
-            lambda: try_direct_onnx_export(model, dummy_input, output_path),
+            lambda: try_torch_export(model, dummy_input, output_path, input_names, dynamic_axes, task),
+            lambda: try_torch_jit_trace(model, dummy_input, output_path, input_names, dynamic_axes),
         ]
         
         for strategy in strategies:
@@ -280,6 +738,7 @@ def convert_huggingface_to_onnx(model_path, output_path, axon_model_id):
         import traceback
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:

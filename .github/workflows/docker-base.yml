@@ -1,0 +1,146 @@
+# =============================================================================
+# Build and Publish Axon Base Docker Image
+# =============================================================================
+# This workflow builds the base image with all Python ML dependencies.
+# Should only be triggered when dependencies change (rare).
+#
+# The base image is used by axon-converter for fast builds.
+# =============================================================================
+
+name: Build Axon Base Image
+
+on:
+  # Manual trigger for dependency updates
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Base image version tag (e.g., 1.0.0)'
+        required: false
+        default: '1.0.0'
+      push:
+        description: 'Push to registry?'
+        type: boolean
+        default: true
+
+  # Trigger on changes to base Dockerfile or dependency specs
+  push:
+    branches: [ main ]
+    paths:
+      - 'docker/Dockerfile.base'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-base:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="1.0.0"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building base image version: ${VERSION}"
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/mlos-foundation/axon-base
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push base image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.base
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event.inputs.push != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VERSION=${{ steps.version.outputs.version }}
+
+      - name: Test base image
+        run: |
+          IMAGE_TAG="ghcr.io/mlos-foundation/axon-base:${{ steps.version.outputs.version }}"
+          echo "Testing base image: $IMAGE_TAG"
+          
+          # Pull the image for testing
+          docker pull --platform linux/amd64 "$IMAGE_TAG"
+          
+          # Test all major dependencies
+          echo "Testing Python..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 --version
+          
+          echo "Testing PyTorch..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import torch; print('✅ PyTorch:', torch.__version__)"
+          
+          echo "Testing Transformers..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import transformers; print('✅ Transformers:', transformers.__version__)"
+          
+          echo "Testing Optimum..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import optimum; print('✅ Optimum:', optimum.__version__)"
+          
+          echo "Testing TensorFlow..."
+          docker run --rm --platform linux/amd64 -e TF_CPP_MIN_LOG_LEVEL=3 "$IMAGE_TAG" python3 -c "import tensorflow as tf; print('✅ TensorFlow:', tf.__version__)"
+          
+          echo "Testing ONNX..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import onnx; print('✅ ONNX:', onnx.__version__)"
+          
+          echo "Testing ONNX Runtime..."
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import onnxruntime; print('✅ ONNX Runtime:', onnxruntime.__version__)"
+          
+          echo ""
+          echo "✅ All dependencies verified in base image!"
+
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Base Image Build Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Image: ghcr.io/mlos-foundation/axon-base:${{ steps.version.outputs.version }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
+          echo ""
+          echo "The converter image can now use this as its base:"
+          echo "  FROM ghcr.io/mlos-foundation/axon-base:${{ steps.version.outputs.version }}"
+

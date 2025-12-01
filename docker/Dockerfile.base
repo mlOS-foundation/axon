@@ -1,0 +1,97 @@
+# =============================================================================
+# Axon Base Image - Python ML Environment
+# =============================================================================
+# This image contains all Python ML frameworks and dependencies.
+# It's designed to be rarely rebuilt - only when dependencies change.
+#
+# Usage: docker build -t ghcr.io/mlos-foundation/axon-base:latest -f docker/Dockerfile.base .
+# =============================================================================
+
+FROM python:3.11-slim
+
+# Build arguments for versioning
+ARG BUILD_DATE
+ARG VERSION=1.0.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# =============================================================================
+# Python ML Dependencies - The Heavy Stuff
+# =============================================================================
+# This layer takes ~10-15 minutes to build. By separating it into a base image,
+# we only rebuild when dependencies actually change.
+
+# Install pip and protobuf first (TensorFlow compatibility)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir "protobuf<4.21,>=3.20"
+
+# TensorFlow ecosystem (install first to avoid CUDA conflicts)
+RUN pip install --no-cache-dir \
+    tensorflow>=2.13.0 \
+    tensorflow-hub>=0.15.0 \
+    tf2onnx>=1.15.0
+
+# PyTorch CPU-only (avoid CUDA conflicts, smaller image)
+RUN pip install --no-cache-dir \
+    torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Hugging Face ecosystem with ONNX export support
+RUN pip install --no-cache-dir \
+    transformers>=4.30.0 \
+    "optimum[exporters,onnxruntime]>=1.16.0" \
+    accelerate>=0.20.0 \
+    safetensors>=0.4.0
+
+# ModelScope support
+RUN pip install --no-cache-dir \
+    modelscope>=1.9.0
+
+# ONNX tools and runtime
+RUN pip install --no-cache-dir \
+    onnx>=1.14.0 \
+    onnxruntime>=1.18.0 \
+    onnxscript>=0.1.0
+
+# Additional ML frameworks for scikit-learn and XGBoost models
+RUN pip install --no-cache-dir \
+    scikit-learn>=1.3.0 \
+    skl2onnx>=1.16.0 \
+    xgboost>=2.0.0 \
+    onnxmltools>=1.12.0
+
+# Utilities
+RUN pip install --no-cache-dir \
+    numpy>=1.24.0 \
+    pillow>=10.0.0 \
+    requests>=2.31.0 \
+    pyyaml>=6.0.0
+
+# Clean up
+RUN pip cache purge 2>/dev/null || true
+
+# Create working directories
+RUN mkdir -p /axon/scripts /axon/cache
+
+WORKDIR /axon
+
+# =============================================================================
+# Metadata
+# =============================================================================
+LABEL org.opencontainers.image.title="Axon Base"
+LABEL org.opencontainers.image.description="Base image with Python ML frameworks for ONNX conversion"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.source="https://github.com/mlOS-foundation/axon"
+LABEL org.opencontainers.image.url="https://github.com/mlOS-foundation/axon"
+LABEL org.opencontainers.image.vendor="mlOS Foundation"
+LABEL org.opencontainers.image.base.name="python:3.11-slim"
+
+# Version file for easy checking
+RUN echo "${VERSION}" > /axon/BASE_VERSION
+
