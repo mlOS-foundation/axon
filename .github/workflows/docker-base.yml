@@ -119,7 +119,7 @@ jobs:
           docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import transformers; print('✅ Transformers:', transformers.__version__)"
           
           echo "Testing Optimum..."
-          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "import optimum; print('✅ Optimum:', optimum.__version__)"
+          docker run --rm --platform linux/amd64 "$IMAGE_TAG" python3 -c "from optimum.version import __version__; print('✅ Optimum:', __version__)"
           
           echo "Testing TensorFlow..."
           docker run --rm --platform linux/amd64 -e TF_CPP_MIN_LOG_LEVEL=3 "$IMAGE_TAG" python3 -c "import tensorflow as tf; print('✅ TensorFlow:', tf.__version__)"
@@ -143,4 +143,5 @@ jobs:
           echo ""
           echo "The converter image can now use this as its base:"
           echo "  FROM ghcr.io/mlos-foundation/axon-base:${{ steps.version.outputs.version }}"
+
 
