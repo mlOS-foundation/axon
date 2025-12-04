@@ -19,6 +19,42 @@ import warnings
 warnings.filterwarnings('ignore')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# Import shared utilities for multi-encoder support
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from convert_common import find_onnx_files, write_multi_encoder_manifest
+except ImportError:
+    # Fallback if convert_common not available
+    def find_onnx_files(directory):
+        onnx_files = []
+        if os.path.isdir(directory):
+            for f in os.listdir(directory):
+                if f.endswith('.onnx'):
+                    onnx_files.append(os.path.join(directory, f))
+        return sorted(onnx_files)
+    
+    def write_multi_encoder_manifest(output_dir, onnx_files, task=None):
+        import json
+        file_names = [os.path.basename(f) for f in onnx_files]
+        if 'text_model.onnx' in file_names and 'vision_model.onnx' in file_names:
+            architecture, encoder_type = 'multi-encoder', 'clip'
+            components = {'text_encoder': 'text_model.onnx', 'vision_encoder': 'vision_model.onnx'}
+        elif 'encoder_model.onnx' in file_names and 'decoder_model.onnx' in file_names:
+            architecture, encoder_type = 'encoder-decoder', 'seq2seq'
+            components = {'encoder': 'encoder_model.onnx', 'decoder': 'decoder_model.onnx'}
+            if 'decoder_with_past_model.onnx' in file_names:
+                components['decoder_with_past'] = 'decoder_with_past_model.onnx'
+        else:
+            architecture, encoder_type = 'multi-model', 'unknown'
+            components = {f'model_{i}': f for i, f in enumerate(file_names)}
+        manifest = {'architecture': architecture, 'encoder_type': encoder_type, 'task': task or 'unknown',
+                    'components': components, 'files': file_names}
+        manifest_path = os.path.join(output_dir, 'onnx_manifest.json')
+        with open(manifest_path, 'w') as f:
+            json.dump(manifest, f, indent=2)
+        print(f'   Created onnx_manifest.json for {architecture} model')
+        return manifest_path
+
 def extract_tf_model_id(axon_model_id):
     """Extract TensorFlow Hub model ID from Axon format."""
     # Format: "tfhub/model_name@version" -> "model_name"
@@ -198,7 +234,8 @@ def convert_tensorflow_to_onnx(model_path, output_path, axon_model_id):
         import tensorflow as tf
         
         # Create output directory
-        os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
+        output_dir = os.path.dirname(output_path) or '.'
+        os.makedirs(output_dir, exist_ok=True)
         
         model_id = extract_tf_model_id(axon_model_id)
         print(f'📦 Converting TensorFlow model: {model_id} (Axon ID: {axon_model_id})')
@@ -209,7 +246,7 @@ def convert_tensorflow_to_onnx(model_path, output_path, axon_model_id):
         
         # If model_path exists, try file-based conversions first
         if os.path.exists(model_path):
-        if os.path.isdir(model_path):
+            if os.path.isdir(model_path):
                 strategies.append(lambda: try_saved_model_conversion(model_path, output_path))
                 strategies.append(lambda: try_keras_model_conversion(model_path, output_path))
             elif os.path.isfile(model_path):
@@ -220,6 +257,11 @@ def convert_tensorflow_to_onnx(model_path, output_path, axon_model_id):
         
         for strategy in strategies:
             if strategy():
+                # Check if multiple ONNX files were created (multi-encoder model)
+                onnx_files = find_onnx_files(output_dir)
+                if len(onnx_files) > 1:
+                    print(f'✅ Multi-encoder model detected: {len(onnx_files)} ONNX files')
+                    write_multi_encoder_manifest(output_dir, onnx_files, 'unknown')
                 return True
         
         # All strategies failed

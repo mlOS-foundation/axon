@@ -531,7 +531,7 @@ func installCmd() *cobra.Command {
 			}
 
 			// Attempt ONNX conversion (pure Go first, Python optional)
-			// This adds model.onnx to the extracted files
+			// This adds model.onnx (or multiple ONNX files for multi-encoder models)
 			onnxPath := filepath.Join(cachePath, "model.onnx")
 			modelID := fmt.Sprintf("%s/%s", namespace, name)
 			if namespace == "hf" {
@@ -539,19 +539,32 @@ func installCmd() *cobra.Command {
 				modelID = name
 			}
 
-			converted, err := converter.ConvertToONNX(cmd.Context(), cachePath, manifest.Spec.Framework.Name, namespace, modelID, onnxPath)
+			convResult, err := converter.ConvertToONNXWithResult(cmd.Context(), cachePath, manifest.Spec.Framework.Name, namespace, modelID, onnxPath)
 			if err != nil {
 				// Conversion error - log but don't fail (model still works without ONNX)
 				fmt.Printf("⚠️  ONNX conversion failed: %v\n", err)
 				fmt.Printf("   Model will work with framework-specific plugins\n")
-			} else if converted {
-				fmt.Printf("✅ ONNX conversion successful: %s\n", onnxPath)
-				// Rebuild package with ONNX file included
+			} else if convResult.Success {
+				if convResult.IsMultiEncoder {
+					fmt.Printf("✅ Multi-encoder ONNX conversion successful (%s)\n", convResult.Architecture)
+					fmt.Printf("   Created %d ONNX files:\n", len(convResult.AllFiles))
+					for _, f := range convResult.AllFiles {
+						fmt.Printf("     - %s\n", filepath.Base(f))
+					}
+					// Update manifest to indicate multi-encoder architecture
+					if manifest.Spec.Format.ExecutionFormat == "" {
+						manifest.Spec.Format.ExecutionFormat = "onnx"
+					}
+					manifest.Spec.Format.MultiEncoder = convResult.Architecture
+				} else {
+					fmt.Printf("✅ ONNX conversion successful: %s\n", convResult.PrimaryFile)
+				}
+				// Rebuild package with all ONNX files included
 				if err := rebuildPackageWithONNX(cachePath, cachePackagePath); err != nil {
 					fmt.Printf("⚠️  Failed to rebuild package with ONNX: %v\n", err)
-					fmt.Printf("   ONNX file is available in cache directory\n")
+					fmt.Printf("   ONNX files are available in cache directory\n")
 				} else {
-					fmt.Printf("✅ Package rebuilt with ONNX file included\n")
+					fmt.Printf("✅ Package rebuilt with ONNX file(s) included\n")
 				}
 			}
 

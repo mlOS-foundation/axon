@@ -17,6 +17,9 @@ type DockerConverter struct {
 	cacheDir  string
 }
 
+// DefaultConverterImage is the default Docker image for ONNX conversion.
+const DefaultConverterImage = "ghcr.io/mlos-foundation/axon-converter:latest"
+
 // NewDockerConverter creates a new Docker-based converter.
 func NewDockerConverter() *DockerConverter {
 	cacheDir := os.Getenv("AXON_CACHE_DIR")
@@ -25,8 +28,14 @@ func NewDockerConverter() *DockerConverter {
 		cacheDir = filepath.Join(homeDir, ".axon", "cache")
 	}
 
+	// Allow override via environment variable for testing/development
+	imageName := os.Getenv("AXON_CONVERTER_IMAGE")
+	if imageName == "" {
+		imageName = DefaultConverterImage
+	}
+
 	return &DockerConverter{
-		imageName: "ghcr.io/mlos-foundation/axon-converter:latest", // Default multi-framework image
+		imageName: imageName,
 		cacheDir:  cacheDir,
 	}
 }
@@ -42,14 +51,20 @@ func IsDockerAvailable() bool {
 
 // getDockerImageForRepository returns the Docker image name for a given repository namespace.
 // This allows repository-specific images with optimized dependencies.
+// Can be overridden via AXON_CONVERTER_IMAGE environment variable for testing.
 func getDockerImageForRepository(namespace string) string {
+	// Check for environment variable override first (useful for testing/development)
+	if override := os.Getenv("AXON_CONVERTER_IMAGE"); override != "" {
+		return override
+	}
+
 	// Repository-to-image mapping
 	// Can be extended for repository-specific images
 	repositoryImageMap := map[string]string{
-		"hf":      "ghcr.io/mlos-foundation/axon-converter:latest", // Hugging Face (use default for now)
-		"pytorch": "ghcr.io/mlos-foundation/axon-converter:latest", // PyTorch Hub
-		"tfhub":   "ghcr.io/mlos-foundation/axon-converter:latest", // TensorFlow Hub
-		"ms":      "ghcr.io/mlos-foundation/axon-converter:latest", // ModelScope
+		"hf":      DefaultConverterImage, // Hugging Face (use default for now)
+		"pytorch": DefaultConverterImage, // PyTorch Hub
+		"tfhub":   DefaultConverterImage, // TensorFlow Hub
+		"ms":      DefaultConverterImage, // ModelScope
 	}
 
 	if image, ok := repositoryImageMap[namespace]; ok {
@@ -57,7 +72,7 @@ func getDockerImageForRepository(namespace string) string {
 	}
 
 	// Default to multi-framework image
-	return "ghcr.io/mlos-foundation/axon-converter:latest"
+	return DefaultConverterImage
 }
 
 // getConversionScript returns the conversion script name based on repository namespace and framework.

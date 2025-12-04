@@ -53,8 +53,9 @@ type Framework struct {
 
 // Format describes the model file format
 type Format struct {
-	Type            string      `yaml:"type" json:"type"`                         // Original format (pytorch, tensorflow)
-	ExecutionFormat string      `yaml:"execution_format" json:"execution_format"` // Execution format (onnx, pytorch, tensorflow)
+	Type            string      `yaml:"type" json:"type"`                                       // Original format (pytorch, tensorflow)
+	ExecutionFormat string      `yaml:"execution_format" json:"execution_format"`               // Execution format (onnx, pytorch, tensorflow)
+	MultiEncoder    string      `yaml:"multi_encoder,omitempty" json:"multi_encoder,omitempty"` // Architecture for multi-encoder models (clip, seq2seq)
 	Files           []ModelFile `yaml:"files" json:"files"`
 }
 

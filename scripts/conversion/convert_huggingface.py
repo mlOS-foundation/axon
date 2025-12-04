@@ -225,6 +225,7 @@ TASK_MAPPING = {
     
     # Multi-Modal
     'CLIPConfig': 'zero-shot-image-classification',
+    'CLIPModel': 'zero-shot-image-classification',  # Architecture name
     'CLIPTextConfig': 'feature-extraction',
     'CLIPVisionConfig': 'image-classification',
     'BlipConfig': 'image-to-text',
@@ -315,7 +316,11 @@ def detect_task_from_config(model_path):
         
         # Check for model_type field
         model_type = config.get('model_type', '')
-        config_class_name = f"{model_type.title().replace('-', '').replace('_', '')}Config"
+        # Handle special cases (CLIP, etc.) that need uppercase
+        if model_type.lower() == 'clip':
+            config_class_name = 'CLIPConfig'
+        else:
+            config_class_name = f"{model_type.title().replace('-', '').replace('_', '')}Config"
         
         if config_class_name in TASK_MAPPING:
             task = TASK_MAPPING[config_class_name]
@@ -350,6 +355,10 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
     """
     Strategy 1: Use Optimum library (best for transformers models).
     This is the recommended approach for Hugging Face models.
+    
+    Handles multi-encoder models (CLIP, T5, etc.) that export multiple ONNX files:
+    - CLIP: text_model.onnx, vision_model.onnx
+    - T5/BART: encoder_model.onnx, decoder_model.onnx, decoder_with_past_model.onnx
     """
     try:
         from optimum.exporters.onnx import main_export
@@ -369,8 +378,23 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
             if detected_task:
                 task = detected_task
             else:
-                # Fallback to 'auto' and let Optimum try
-                task = 'auto'
+                # For CLIP and other multi-modal models, try to infer from model ID
+                if 'clip' in hf_model_id.lower():
+                    task = 'zero-shot-image-classification'
+                    print(f'   Inferred CLIP task from model ID: {task}')
+                else:
+                    # Fallback to 'auto' and let Optimum try
+                    task = 'auto'
+        
+        # For Optimum export with specific tasks, prefer using Hugging Face model ID
+        # Optimum can't always infer task from local directories, especially for multi-modal models
+        if task != 'auto' and task is not None:
+            # For multi-modal models like CLIP, always use model ID (Optimum requirement)
+            if task in ['zero-shot-image-classification', 'image-to-text', 'image-text-to-text']:
+                print(f'   Using Hugging Face model ID for {task} (Optimum requirement for multi-modal)')
+                model_name_or_path = hf_model_id
+            # For other tasks, try local path first, but Optimum may still need model ID
+            # We'll let Optimum handle it and fall back if needed
         
         print(f'   Using task: {task}')
         print(f'   Model path: {model_name_or_path}')
@@ -384,12 +408,34 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
             fp16=False,
         )
         
-        # Optimum may create model.onnx in output_dir, move if needed
-        optimum_output = os.path.join(output_dir, 'model.onnx')
-        if os.path.exists(optimum_output) and optimum_output != output_path:
-            os.rename(optimum_output, output_path)
+        # Check what ONNX files were created
+        onnx_files = find_onnx_files(output_dir)
         
-        if os.path.exists(output_path):
+        if not onnx_files:
+            print('⚠️  No ONNX files created by Optimum')
+            return False
+        
+        # Handle multi-encoder models
+        if len(onnx_files) > 1:
+            print(f'✅ SUCCESS (Optimum export) - Multi-encoder model')
+            print(f'   Created {len(onnx_files)} ONNX files:')
+            for f in onnx_files:
+                print(f'     - {os.path.basename(f)}')
+            # Write model manifest for multi-encoder
+            write_multi_encoder_manifest(output_dir, onnx_files, task)
+            return True
+        
+        # Single model - move to expected location if needed
+        if len(onnx_files) == 1:
+            created_file = onnx_files[0]
+            if created_file != output_path:
+                # Rename to model.onnx if it's not already
+                if os.path.basename(created_file) != 'model.onnx':
+                    new_path = os.path.join(output_dir, 'model.onnx')
+                    os.rename(created_file, new_path)
+                    created_file = new_path
+                if created_file != output_path:
+                    os.rename(created_file, output_path)
             print('✅ SUCCESS (Optimum export)')
             return True
         
@@ -401,6 +447,10 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
     except Exception as e:
         print(f'⚠️  Optimum export failed: {str(e)}')
         return False
+
+
+# find_onnx_files and write_multi_encoder_manifest are now imported from convert_common
+# (or use fallback implementations defined above)
 
 
 def load_model_and_tokenizer(model_path, hf_model_id, task=None):

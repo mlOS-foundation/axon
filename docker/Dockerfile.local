@@ -1,0 +1,39 @@
+# =============================================================================
+# Local Test Dockerfile - All-in-one for quick testing
+# =============================================================================
+# Usage: docker build -t axon-converter:local -f docker/Dockerfile.local .
+# =============================================================================
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (minimal set for vision models)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+    transformers>=4.30.0 \
+    "optimum[exporters,onnxruntime]>=1.16.0" \
+    accelerate>=0.20.0 \
+    safetensors>=0.4.0 \
+    onnx>=1.14.0 \
+    onnxruntime>=1.18.0 \
+    onnxscript>=0.1.0 \
+    pillow>=10.0.0 \
+    numpy>=1.24.0
+
+# Create directories
+RUN mkdir -p /axon/scripts /axon/cache
+
+# Copy conversion scripts
+WORKDIR /axon/scripts
+COPY scripts/conversion/ /axon/scripts/
+RUN chmod +x /axon/scripts/*.py 2>/dev/null || true
+
+WORKDIR /axon/cache
+ENTRYPOINT ["python3"]
+
