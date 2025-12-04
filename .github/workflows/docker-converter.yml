@@ -171,23 +171,69 @@ jobs:
           IMAGE_TAG=$(echo "$IMAGE_TAG" | head -n1 | tr -d '[:space:]')
           echo "Saving image $IMAGE_TAG as OCI artifacts for both platforms..."
           
+          # Use temporary directory with more space (runner's /tmp may have more space)
+          WORK_DIR=$(mktemp -d)
+          cd "$WORK_DIR"
+          echo "Working directory: $WORK_DIR"
+          
+          # Check available disk space (need at least 3GB free for both images)
+          AVAILABLE_SPACE=$(df -BG "$WORK_DIR" | tail -1 | awk '{print $4}' | sed 's/G//')
+          echo "Available disk space: ${AVAILABLE_SPACE}GB"
+          if [ "$AVAILABLE_SPACE" -lt 3 ]; then
+            echo "⚠️  Insufficient disk space (${AVAILABLE_SPACE}GB < 3GB required)"
+            echo "⚠️  Skipping OCI artifact creation. Images are available from registry:"
+            echo "   docker pull $IMAGE_TAG"
+            cd "$GITHUB_WORKSPACE"
+            rm -rf "$WORK_DIR"
+            exit 0
+          fi
+          
           # Function to save image with progress indication
           save_image() {
             local platform=$1
             local output_file=$2
+            local temp_tar="${output_file%.gz}"
+            
             echo "📦 Pulling $platform image from registry..."
             docker pull --platform "$platform" "$IMAGE_TAG" || return 1
+            
+            # Remove any existing image layers to free space
+            echo "🧹 Cleaning up unused Docker resources..."
+            docker system prune -f --volumes || true
             
             echo "💾 Saving $platform image (this may take several minutes for large images)..."
             local start_time=$(date +%s)
             
-            # Save and compress with progress indication
-            # Use docker save with explicit platform to ensure correct image
-            docker save "$IMAGE_TAG" 2>/dev/null | gzip > "$output_file" &
+            # Save to uncompressed tar first (uses less disk space during compression)
+            echo "   Step 1/2: Saving uncompressed..."
+            docker save "$IMAGE_TAG" > "$temp_tar" 2>&1 &
             local save_pid=$!
             
             # Show progress while saving
             while kill -0 $save_pid 2>/dev/null; do
+              sleep 5
+              if [ -f "$temp_tar" ]; then
+                local size=$(du -h "$temp_tar" 2>/dev/null | cut -f1)
+                echo "   ⏳ Saving... (current size: ${size:-unknown})"
+              fi
+            done
+            
+            wait $save_pid
+            local save_exit=$?
+            
+            if [ $save_exit -ne 0 ] || [ ! -f "$temp_tar" ]; then
+              echo "❌ Failed to save $platform image"
+              rm -f "$temp_tar"
+              return 1
+            fi
+            
+            # Step 2: Compress the tar file
+            echo "   Step 2/2: Compressing..."
+            gzip -c "$temp_tar" > "$output_file" &
+            local gzip_pid=$!
+            
+            # Show progress while compressing
+            while kill -0 $gzip_pid 2>/dev/null; do
               sleep 5
               if [ -f "$output_file" ]; then
                 local size=$(du -h "$output_file" 2>/dev/null | cut -f1)
@@ -195,28 +241,37 @@ jobs:
               fi
             done
             
-            wait $save_pid
-            local exit_code=$?
+            wait $gzip_pid
+            local gzip_exit=$?
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
             
-            if [ $exit_code -eq 0 ] && [ -f "$output_file" ]; then
+            # Clean up uncompressed tar immediately after compression
+            rm -f "$temp_tar"
+            
+            if [ $gzip_exit -eq 0 ] && [ -f "$output_file" ]; then
               local final_size=$(du -h "$output_file" | cut -f1)
               echo "✅ Saved $platform: $output_file (${final_size}, took ${duration}s)"
+              # Move to workspace root for upload
+              mv "$output_file" "$GITHUB_WORKSPACE/"
               return 0
             else
-              echo "❌ Failed to save $platform image"
+              echo "❌ Failed to compress $platform image"
+              rm -f "$output_file" "$temp_tar"
               return 1
             fi
           }
           
-          # Save both platforms
-          save_image "linux/amd64" "axon-converter-${VERSION}-linux-amd64.tar.gz"
-          save_image "linux/arm64" "axon-converter-${VERSION}-linux-arm64.tar.gz"
+          # Save both platforms sequentially (to avoid running out of space)
+          save_image "linux/amd64" "axon-converter-${VERSION}-linux-amd64.tar.gz" || echo "⚠️  Failed to save linux/amd64, continuing..."
+          save_image "linux/arm64" "axon-converter-${VERSION}-linux-arm64.tar.gz" || echo "⚠️  Failed to save linux/arm64, continuing..."
+          
+          cd "$GITHUB_WORKSPACE"
+          rm -rf "$WORK_DIR"
           
           echo ""
           echo "📋 All OCI artifacts:"
-          ls -lh axon-converter-*.tar.gz
+          ls -lh axon-converter-*.tar.gz 2>/dev/null || echo "⚠️  No artifacts created (disk space may be insufficient)"
 
       - name: Upload OCI artifacts to release
         if: steps.release_info.outputs.skip != 'true'
