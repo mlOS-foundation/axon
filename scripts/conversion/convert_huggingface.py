@@ -225,6 +225,7 @@ TASK_MAPPING = {
     
     # Multi-Modal
     'CLIPConfig': 'zero-shot-image-classification',
+    'CLIPModel': 'zero-shot-image-classification',  # Architecture name
     'CLIPTextConfig': 'feature-extraction',
     'CLIPVisionConfig': 'image-classification',
     'BlipConfig': 'image-to-text',
@@ -315,7 +316,11 @@ def detect_task_from_config(model_path):
         
         # Check for model_type field
         model_type = config.get('model_type', '')
-        config_class_name = f"{model_type.title().replace('-', '').replace('_', '')}Config"
+        # Handle special cases (CLIP, etc.) that need uppercase
+        if model_type.lower() == 'clip':
+            config_class_name = 'CLIPConfig'
+        else:
+            config_class_name = f"{model_type.title().replace('-', '').replace('_', '')}Config"
         
         if config_class_name in TASK_MAPPING:
             task = TASK_MAPPING[config_class_name]
@@ -373,8 +378,23 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
             if detected_task:
                 task = detected_task
             else:
-                # Fallback to 'auto' and let Optimum try
-                task = 'auto'
+                # For CLIP and other multi-modal models, try to infer from model ID
+                if 'clip' in hf_model_id.lower():
+                    task = 'zero-shot-image-classification'
+                    print(f'   Inferred CLIP task from model ID: {task}')
+                else:
+                    # Fallback to 'auto' and let Optimum try
+                    task = 'auto'
+        
+        # For Optimum export with specific tasks, prefer using Hugging Face model ID
+        # Optimum can't always infer task from local directories, especially for multi-modal models
+        if task != 'auto' and task is not None:
+            # For multi-modal models like CLIP, always use model ID (Optimum requirement)
+            if task in ['zero-shot-image-classification', 'image-to-text', 'image-text-to-text']:
+                print(f'   Using Hugging Face model ID for {task} (Optimum requirement for multi-modal)')
+                model_name_or_path = hf_model_id
+            # For other tasks, try local path first, but Optimum may still need model ID
+            # We'll let Optimum handle it and fall back if needed
         
         print(f'   Using task: {task}')
         print(f'   Model path: {model_name_or_path}')
