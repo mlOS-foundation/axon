@@ -350,6 +350,10 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
     """
     Strategy 1: Use Optimum library (best for transformers models).
     This is the recommended approach for Hugging Face models.
+    
+    Handles multi-encoder models (CLIP, T5, etc.) that export multiple ONNX files:
+    - CLIP: text_model.onnx, vision_model.onnx
+    - T5/BART: encoder_model.onnx, decoder_model.onnx, decoder_with_past_model.onnx
     """
     try:
         from optimum.exporters.onnx import main_export
@@ -384,12 +388,34 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
             fp16=False,
         )
         
-        # Optimum may create model.onnx in output_dir, move if needed
-        optimum_output = os.path.join(output_dir, 'model.onnx')
-        if os.path.exists(optimum_output) and optimum_output != output_path:
-            os.rename(optimum_output, output_path)
+        # Check what ONNX files were created
+        onnx_files = find_onnx_files(output_dir)
         
-        if os.path.exists(output_path):
+        if not onnx_files:
+            print('⚠️  No ONNX files created by Optimum')
+            return False
+        
+        # Handle multi-encoder models
+        if len(onnx_files) > 1:
+            print(f'✅ SUCCESS (Optimum export) - Multi-encoder model')
+            print(f'   Created {len(onnx_files)} ONNX files:')
+            for f in onnx_files:
+                print(f'     - {os.path.basename(f)}')
+            # Write model manifest for multi-encoder
+            write_multi_encoder_manifest(output_dir, onnx_files, task)
+            return True
+        
+        # Single model - move to expected location if needed
+        if len(onnx_files) == 1:
+            created_file = onnx_files[0]
+            if created_file != output_path:
+                # Rename to model.onnx if it's not already
+                if os.path.basename(created_file) != 'model.onnx':
+                    new_path = os.path.join(output_dir, 'model.onnx')
+                    os.rename(created_file, new_path)
+                    created_file = new_path
+                if created_file != output_path:
+                    os.rename(created_file, output_path)
             print('✅ SUCCESS (Optimum export)')
             return True
         
@@ -401,6 +427,61 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
     except Exception as e:
         print(f'⚠️  Optimum export failed: {str(e)}')
         return False
+
+
+def find_onnx_files(directory):
+    """Find all ONNX files in a directory."""
+    onnx_files = []
+    for f in os.listdir(directory):
+        if f.endswith('.onnx'):
+            onnx_files.append(os.path.join(directory, f))
+    return sorted(onnx_files)
+
+
+def write_multi_encoder_manifest(output_dir, onnx_files, task):
+    """
+    Write a manifest file for multi-encoder models.
+    This helps Core understand how to load and orchestrate multiple ONNX files.
+    """
+    import json
+    
+    # Determine model architecture type
+    file_names = [os.path.basename(f) for f in onnx_files]
+    
+    if 'text_model.onnx' in file_names and 'vision_model.onnx' in file_names:
+        architecture = 'multi-encoder'
+        encoder_type = 'clip'
+        components = {
+            'text_encoder': 'text_model.onnx',
+            'vision_encoder': 'vision_model.onnx'
+        }
+    elif 'encoder_model.onnx' in file_names and 'decoder_model.onnx' in file_names:
+        architecture = 'encoder-decoder'
+        encoder_type = 'seq2seq'
+        components = {
+            'encoder': 'encoder_model.onnx',
+            'decoder': 'decoder_model.onnx'
+        }
+        if 'decoder_with_past_model.onnx' in file_names:
+            components['decoder_with_past'] = 'decoder_with_past_model.onnx'
+    else:
+        architecture = 'multi-model'
+        encoder_type = 'unknown'
+        components = {f'model_{i}': f for i, f in enumerate(file_names)}
+    
+    manifest = {
+        'architecture': architecture,
+        'encoder_type': encoder_type,
+        'task': task,
+        'components': components,
+        'files': file_names
+    }
+    
+    manifest_path = os.path.join(output_dir, 'onnx_manifest.json')
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest, f, indent=2)
+    
+    print(f'   Created onnx_manifest.json for {architecture} model')
 
 
 def load_model_and_tokenizer(model_path, hf_model_id, task=None):
