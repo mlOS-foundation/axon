@@ -182,8 +182,9 @@ jobs:
               TAG_NAME=${REF#refs/tags/}
               VERSION=${TAG_NAME#v}
             elif [ -n "${{ github.event.inputs.version }}" ] && [ "${{ github.event.inputs.version }}" != "latest" ]; then
-              # Use provided version input
+              # Use provided version input (strip 'v' prefix if present to avoid double 'v')
               VERSION="${{ github.event.inputs.version }}"
+              VERSION=${VERSION#v}  # Remove 'v' prefix if present
               TAG_NAME="v${VERSION}"
             else
               echo "⚠️  No release tag found. Skipping OCI artifact upload."
