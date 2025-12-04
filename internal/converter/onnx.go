@@ -43,12 +43,12 @@ type MultiEncoderManifest struct {
 
 // ConversionResult contains information about a successful conversion
 type ConversionResult struct {
-	Success         bool
-	IsMultiEncoder  bool
-	PrimaryFile     string   // model.onnx for single, empty for multi
-	AllFiles        []string // All ONNX files created
-	ManifestPath    string   // Path to onnx_manifest.json if multi-encoder
-	Architecture    string   // "single", "multi-encoder", "encoder-decoder"
+	Success        bool
+	IsMultiEncoder bool
+	PrimaryFile    string   // model.onnx for single, empty for multi
+	AllFiles       []string // All ONNX files created
+	ManifestPath   string   // Path to onnx_manifest.json if multi-encoder
+	Architecture   string   // "single", "multi-encoder", "encoder-decoder"
 }
 
 // DownloadPreConvertedONNX attempts to download a pre-converted ONNX file
