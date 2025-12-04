@@ -414,34 +414,52 @@ func ReadMultiEncoderManifest(dir string) (*MultiEncoderManifest, error) {
 	return &manifest, nil
 }
 
+// CheckForMultiEncoderManifest checks if a directory contains a multi-encoder manifest
+// and returns the manifest if found
+func CheckForMultiEncoderManifest(dir string) (*MultiEncoderManifest, bool) {
+	manifest, err := ReadMultiEncoderManifest(dir)
+	if err != nil {
+		return nil, false
+	}
+	return manifest, true
+}
+
 // CheckConversionResult checks what was produced after conversion
 // and returns a ConversionResult with details about all created files
+// This function is called after conversion to detect single vs multi-encoder models
 func CheckConversionResult(modelDir, expectedOutput string) *ConversionResult {
 	result := &ConversionResult{
 		Success:      false,
 		Architecture: "single",
 	}
 
-	// First check for multi-encoder manifest
+	// First check for multi-encoder manifest (created by Python converters)
 	manifest, err := ReadMultiEncoderManifest(modelDir)
 	if err == nil && manifest != nil {
-		// Multi-encoder model
+		// Multi-encoder model detected via manifest
 		result.Success = true
 		result.IsMultiEncoder = true
 		result.Architecture = manifest.Architecture
 		result.ManifestPath = filepath.Join(modelDir, "onnx_manifest.json")
 
-		// Get all ONNX files
+		// Get all ONNX files listed in manifest
 		for _, fileName := range manifest.Files {
 			fullPath := filepath.Join(modelDir, fileName)
 			if _, err := os.Stat(fullPath); err == nil {
 				result.AllFiles = append(result.AllFiles, fullPath)
 			}
 		}
+
+		// If no files found in manifest, try to find them
+		if len(result.AllFiles) == 0 {
+			onnxFiles, _ := FindONNXFiles(modelDir)
+			result.AllFiles = onnxFiles
+		}
+
 		return result
 	}
 
-	// Check for single model.onnx
+	// Check for single model.onnx (standard single-model output)
 	if _, err := os.Stat(expectedOutput); err == nil {
 		result.Success = true
 		result.PrimaryFile = expectedOutput
@@ -449,17 +467,56 @@ func CheckConversionResult(modelDir, expectedOutput string) *ConversionResult {
 		return result
 	}
 
-	// Check for any ONNX files (fallback)
+	// Fallback: Check for any ONNX files (might be multi-encoder without manifest)
 	onnxFiles, err := FindONNXFiles(modelDir)
 	if err == nil && len(onnxFiles) > 0 {
 		result.Success = true
 		if len(onnxFiles) == 1 {
 			result.PrimaryFile = onnxFiles[0]
+			result.AllFiles = []string{onnxFiles[0]}
 		} else {
+			// Multiple files but no manifest - treat as multi-model
 			result.IsMultiEncoder = true
 			result.Architecture = "multi-model"
+			result.AllFiles = onnxFiles
+
+			// Try to auto-detect architecture from file names
+			fileNames := make([]string, len(onnxFiles))
+			for i, f := range onnxFiles {
+				fileNames[i] = filepath.Base(f)
+			}
+
+			// Check for CLIP pattern
+			hasText := false
+			hasVision := false
+			for _, name := range fileNames {
+				if name == "text_model.onnx" {
+					hasText = true
+				}
+				if name == "vision_model.onnx" {
+					hasVision = true
+				}
+			}
+			if hasText && hasVision {
+				result.Architecture = "multi-encoder"
+				// Create manifest for future use
+				manifest := &MultiEncoderManifest{
+					Architecture: "multi-encoder",
+					EncoderType:  "clip",
+					Task:         "zero-shot-image-classification",
+					Components: map[string]string{
+						"text_encoder":   "text_model.onnx",
+						"vision_encoder": "vision_model.onnx",
+					},
+					Files: fileNames,
+				}
+				// Save manifest
+				manifestData, _ := json.MarshalIndent(manifest, "", "  ")
+				manifestPath := filepath.Join(modelDir, "onnx_manifest.json")
+				_ = os.WriteFile(manifestPath, manifestData, 0644)
+				result.ManifestPath = manifestPath
+			}
 		}
-		result.AllFiles = onnxFiles
 	}
 
 	return result

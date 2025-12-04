@@ -47,3 +47,10 @@ build/
 release/
 *.tar.gz
 *.sha256
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
