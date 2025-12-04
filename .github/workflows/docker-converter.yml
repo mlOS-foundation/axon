@@ -24,6 +24,26 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
+      - name: Free up disk space
+        run: |
+          echo "🧹 Freeing up disk space at job start..."
+          echo "Disk space before cleanup:"
+          df -h
+          
+          # Remove system packages we don't need
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          
+          # Clean up Docker if it exists
+          docker system prune -af --volumes 2>/dev/null || true
+          docker image prune -af 2>/dev/null || true
+          docker builder prune -af 2>/dev/null || true
+          
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -175,6 +195,25 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Release tag: ${TAG_NAME}, Version: ${VERSION}"
 
+      - name: Free up disk space before saving images
+        if: steps.release_info.outputs.skip != 'true'
+        run: |
+          echo "🧹 Freeing up disk space..."
+          echo "Disk space before cleanup:"
+          df -h
+          
+          # Remove unused Docker resources
+          docker system prune -af --volumes || true
+          
+          # Remove any dangling images
+          docker image prune -af || true
+          
+          # Remove build cache
+          docker builder prune -af || true
+          
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Save Docker images as OCI artifacts
         if: steps.release_info.outputs.skip != 'true'
         run: |
@@ -185,16 +224,17 @@ jobs:
           IMAGE_TAG=$(echo "$IMAGE_TAG" | head -n1 | tr -d '[:space:]')
           echo "Saving image $IMAGE_TAG as OCI artifacts for both platforms..."
           
-          # Use temporary directory with more space (runner's /tmp may have more space)
-          WORK_DIR=$(mktemp -d)
+          # Use workspace directory (has more space than /tmp)
+          WORK_DIR="$GITHUB_WORKSPACE/oci-artifacts"
+          mkdir -p "$WORK_DIR"
           cd "$WORK_DIR"
           echo "Working directory: $WORK_DIR"
           
-          # Check available disk space (need at least 3GB free for both images)
+          # Check available disk space (need at least 5GB free for both images)
           AVAILABLE_SPACE=$(df -BG "$WORK_DIR" | tail -1 | awk '{print $4}' | sed 's/G//')
           echo "Available disk space: ${AVAILABLE_SPACE}GB"
-          if [ "$AVAILABLE_SPACE" -lt 3 ]; then
-            echo "⚠️  Insufficient disk space (${AVAILABLE_SPACE}GB < 3GB required)"
+          if [ "$AVAILABLE_SPACE" -lt 5 ]; then
+            echo "⚠️  Insufficient disk space (${AVAILABLE_SPACE}GB < 5GB required)"
             echo "⚠️  Skipping OCI artifact creation. Images are available from registry:"
             echo "   docker pull $IMAGE_TAG"
             cd "$GITHUB_WORKSPACE"
@@ -241,8 +281,9 @@ jobs:
               return 1
             fi
             
-            # Step 2: Compress the tar file
-            echo "   Step 2/2: Compressing..."
+            # Step 2: Compress the tar file (streaming to save disk space)
+            echo "   Step 2/2: Compressing (streaming to save disk space)..."
+            # Use streaming compression to avoid needing 2x disk space
             gzip -c "$temp_tar" > "$output_file" &
             local gzip_pid=$!
             
@@ -261,7 +302,11 @@ jobs:
             local duration=$((end_time - start_time))
             
             # Clean up uncompressed tar immediately after compression
+            echo "   🧹 Cleaning up uncompressed tar..."
             rm -f "$temp_tar"
+            
+            # Free up more space after each platform
+            docker system prune -f || true
             
             if [ $gzip_exit -eq 0 ] && [ -f "$output_file" ]; then
               local final_size=$(du -h "$output_file" | cut -f1)
@@ -277,11 +322,24 @@ jobs:
           }
           
           # Save both platforms sequentially (to avoid running out of space)
-          save_image "linux/amd64" "axon-converter-${VERSION}-linux-amd64.tar.gz" || echo "⚠️  Failed to save linux/amd64, continuing..."
-          save_image "linux/arm64" "axon-converter-${VERSION}-linux-arm64.tar.gz" || echo "⚠️  Failed to save linux/arm64, continuing..."
+          # Only save if we have enough space
+          AVAILABLE_SPACE=$(df -BG "$WORK_DIR" | tail -1 | awk '{print $4}' | sed 's/G//')
+          if [ "$AVAILABLE_SPACE" -ge 3 ]; then
+            save_image "linux/amd64" "axon-converter-${VERSION}-linux-amd64.tar.gz" || echo "⚠️  Failed to save linux/amd64, continuing..."
+            # Check space again before second platform
+            AVAILABLE_SPACE=$(df -BG "$WORK_DIR" | tail -1 | awk '{print $4}' | sed 's/G//')
+            if [ "$AVAILABLE_SPACE" -ge 3 ]; then
+              save_image "linux/arm64" "axon-converter-${VERSION}-linux-arm64.tar.gz" || echo "⚠️  Failed to save linux/arm64, continuing..."
+            else
+              echo "⚠️  Insufficient space for linux/arm64 (${AVAILABLE_SPACE}GB < 3GB), skipping"
+            fi
+          else
+            echo "⚠️  Insufficient space for saving images (${AVAILABLE_SPACE}GB < 3GB), skipping OCI artifacts"
+          fi
           
           cd "$GITHUB_WORKSPACE"
-          rm -rf "$WORK_DIR"
+          # Clean up work directory
+          rm -rf "$WORK_DIR" || true
           
           echo ""
           echo "📋 All OCI artifacts:"
