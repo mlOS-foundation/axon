@@ -78,6 +78,17 @@ jobs:
           echo "base_image=${BASE_IMAGE}" >> $GITHUB_OUTPUT
           echo "Using base image: ${BASE_IMAGE}"
 
+      - name: Pull base image for cache
+        run: |
+          BASE_IMAGE="${{ steps.base.outputs.base_image }}"
+          echo "📥 Pulling base image for cache: ${BASE_IMAGE}"
+          echo "ℹ️  The base image contains all ML dependencies (~15 min build time)"
+          echo "ℹ️  If not found, it will be pulled automatically during build"
+          # Pull both platforms to warm up cache (Docker will use cached layers)
+          docker pull --platform linux/amd64 "${BASE_IMAGE}" || echo "⚠️  Base image not found for linux/amd64 (will be pulled during build)"
+          docker pull --platform linux/arm64 "${BASE_IMAGE}" || echo "⚠️  Base image not found for linux/arm64 (will be pulled during build)"
+          echo "✅ Base image cache warmed up"
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -88,7 +99,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+          # Use both GitHub Actions cache and base image for faster builds
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ steps.base.outputs.base_image }}
           cache-to: type=gha,mode=max
           build-args: |
             BASE_IMAGE=${{ steps.base.outputs.base_image }}
