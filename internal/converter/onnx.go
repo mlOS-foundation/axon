@@ -385,18 +385,32 @@ func CanConvert(framework string) bool {
 	return false
 }
 
-// FindONNXFiles finds all ONNX files in a directory
+// FindONNXFiles finds all ONNX files in a directory (including onnx/ subdirectory).
+// Optimum creates multi-encoder model files (T5, CLIP, etc.) in an onnx/ subdirectory.
 func FindONNXFiles(dir string) ([]string, error) {
 	var onnxFiles []string
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
+
+	// Search root directory
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".onnx") {
 			onnxFiles = append(onnxFiles, filepath.Join(dir, entry.Name()))
 		}
 	}
+
+	// Also check onnx/ subdirectory (Optimum creates files here for multi-encoder models)
+	onnxSubdir := filepath.Join(dir, "onnx")
+	if subdirEntries, err := os.ReadDir(onnxSubdir); err == nil {
+		for _, entry := range subdirEntries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".onnx") {
+				onnxFiles = append(onnxFiles, filepath.Join(onnxSubdir, entry.Name()))
+			}
+		}
+	}
+
 	return onnxFiles, nil
 }
 
