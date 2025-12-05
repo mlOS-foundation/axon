@@ -9,13 +9,23 @@ import json
 
 
 def find_onnx_files(directory):
-    """Find all ONNX files in a directory."""
+    """Find all ONNX files in a directory (including onnx/ subdirectory)."""
     onnx_files = []
     if not os.path.isdir(directory):
         return onnx_files
+    
+    # Search root directory
     for f in os.listdir(directory):
         if f.endswith('.onnx'):
             onnx_files.append(os.path.join(directory, f))
+    
+    # Also check onnx/ subdirectory (Optimum creates files here for multi-encoder models)
+    onnx_subdir = os.path.join(directory, 'onnx')
+    if os.path.isdir(onnx_subdir):
+        for f in os.listdir(onnx_subdir):
+            if f.endswith('.onnx'):
+                onnx_files.append(os.path.join(onnx_subdir, f))
+    
     return sorted(onnx_files)
 
 
