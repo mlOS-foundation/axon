@@ -393,14 +393,14 @@ func FindONNXFiles(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Search root directory
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".onnx") {
 			onnxFiles = append(onnxFiles, filepath.Join(dir, entry.Name()))
 		}
 	}
-	
+
 	// Also check onnx/ subdirectory (Optimum creates files here for multi-encoder models)
 	onnxSubdir := filepath.Join(dir, "onnx")
 	if subdirEntries, err := os.ReadDir(onnxSubdir); err == nil {
@@ -410,7 +410,7 @@ func FindONNXFiles(dir string) ([]string, error) {
 			}
 		}
 	}
-	
+
 	return onnxFiles, nil
 }
 
