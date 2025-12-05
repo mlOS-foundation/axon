@@ -295,6 +295,7 @@ def detect_task_from_config(model_path):
     """
     Detect the appropriate task from model config file.
     Returns task string or None if cannot be determined.
+    Handles corrupted JSON files gracefully.
     """
     config_path = os.path.join(model_path, 'config.json')
     
@@ -304,7 +305,33 @@ def detect_task_from_config(model_path):
     
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+            content = f.read()
+            # Try to parse only the first JSON object if file is corrupted
+            try:
+                config = json.loads(content)
+            except json.JSONDecodeError as e:
+                # If JSON is corrupted (multiple objects), try to parse just the first one
+                if 'Extra data' in str(e):
+                    print(f'   ⚠️  Config.json has multiple JSON objects, parsing first one only')
+                    # Find the first complete JSON object
+                    first_brace = content.find('{')
+                    if first_brace >= 0:
+                        # Find matching closing brace
+                        brace_count = 0
+                        end_pos = first_brace
+                        for i, char in enumerate(content[first_brace:], start=first_brace):
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end_pos = i + 1
+                                    break
+                        config = json.loads(content[first_brace:end_pos])
+                    else:
+                        raise
+                else:
+                    raise
         
         # Check for architectures field first (most reliable)
         architectures = config.get('architectures', [])
@@ -378,20 +405,27 @@ def try_optimum_export(model_path, output_path, hf_model_id, task=None):
             if detected_task:
                 task = detected_task
             else:
-                # For CLIP and other multi-modal models, try to infer from model ID
-                if 'clip' in hf_model_id.lower():
+                # Infer task from model ID for known model types
+                hf_id_lower = hf_model_id.lower()
+                if 'clip' in hf_id_lower:
                     task = 'zero-shot-image-classification'
                     print(f'   Inferred CLIP task from model ID: {task}')
+                elif any(t5_name in hf_id_lower for t5_name in ['t5', 'mt5', 'flan-t5', 'ul2']):
+                    task = 'text2text-generation'
+                    print(f'   Inferred T5/seq2seq task from model ID: {task}')
+                elif any(bart_name in hf_id_lower for bart_name in ['bart', 'mbart', 'pegasus']):
+                    task = 'text2text-generation'
+                    print(f'   Inferred BART/seq2seq task from model ID: {task}')
                 else:
                     # Fallback to 'auto' and let Optimum try
                     task = 'auto'
         
         # For Optimum export with specific tasks, prefer using Hugging Face model ID
-        # Optimum can't always infer task from local directories, especially for multi-modal models
+        # Optimum works better with model IDs for multi-encoder models (T5, CLIP, etc.)
         if task != 'auto' and task is not None:
-            # For multi-modal models like CLIP, always use model ID (Optimum requirement)
-            if task in ['zero-shot-image-classification', 'image-to-text', 'image-text-to-text']:
-                print(f'   Using Hugging Face model ID for {task} (Optimum requirement for multi-modal)')
+            # For multi-encoder models, always use model ID (Optimum requirement)
+            if task in ['zero-shot-image-classification', 'image-to-text', 'image-text-to-text', 'text2text-generation']:
+                print(f'   Using Hugging Face model ID for {task} (Optimum requirement for multi-encoder models)')
                 model_name_or_path = hf_model_id
             # For other tasks, try local path first, but Optimum may still need model ID
             # We'll let Optimum handle it and fall back if needed
