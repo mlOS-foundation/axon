@@ -183,13 +183,59 @@ func ConvertToONNXWithDocker(ctx context.Context, modelPath, framework, namespac
 		}
 	}
 
-	// Verify output file was created
-	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+	// Verify output file was created and is valid
+	fileInfo, err := os.Stat(outputPath)
+	if os.IsNotExist(err) {
 		return false, fmt.Errorf("conversion output file not created: %s\nConversion output: %s", outputPath, string(output))
 	}
 
-	fmt.Printf("✅ Model converted to ONNX using Docker: %s\n", outputPath)
+	// Check minimum file size (a valid ONNX file should be at least 1KB)
+	if fileInfo.Size() < 1024 {
+		return false, fmt.Errorf("conversion output file too small (%d bytes), likely corrupted: %s", fileInfo.Size(), outputPath)
+	}
+
+	// Validate ONNX file magic bytes (protobuf starts with valid field tags)
+	if !ValidateONNXFile(outputPath) {
+		return false, fmt.Errorf("conversion output file appears corrupted (invalid ONNX format): %s", outputPath)
+	}
+
+	fmt.Printf("✅ Model converted to ONNX using Docker: %s (%d bytes)\n", outputPath, fileInfo.Size())
 	return true, nil
+}
+
+// ValidateONNXFile performs basic validation of an ONNX file.
+// Checks protobuf structure without fully parsing the model.
+func ValidateONNXFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read first few bytes to check protobuf structure
+	// ONNX files are Protocol Buffer format
+	// A valid protobuf starts with field tags (wire type + field number)
+	header := make([]byte, 16)
+	n, err := f.Read(header)
+	if err != nil || n < 16 {
+		return false
+	}
+
+	// Check for valid protobuf wire types in the first bytes
+	// Wire types: 0=varint, 1=64-bit, 2=length-delimited, 5=32-bit
+	// First byte should be a valid field tag (field_number << 3 | wire_type)
+	// Common valid first bytes for ONNX: 0x08 (field 1, varint), 0x0a (field 1, length-delimited)
+	firstByte := header[0]
+	wireType := firstByte & 0x07
+	if wireType > 5 {
+		// Invalid wire type
+		return false
+	}
+
+	// Note: Common ONNX patterns are 0x08, 0x0a, 0x10, 0x12
+	// but other valid protobuf field tags are also acceptable
+	// File passed basic checks
+	return true
 }
 
 // EnsureDockerImage ensures the Docker image is available locally.

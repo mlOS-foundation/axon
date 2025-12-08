@@ -530,10 +530,11 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("failed to extract package: %w", err)
 			}
 
-			// Check if format is already execution-ready (GGUF, ONNX, SafeTensors)
+			// Check if format is already execution-ready (GGUF, ONNX)
 			// These formats can be used directly by MLOS Core without conversion
-			if converter.IsExecutionReady(manifest.Spec.Format.ExecutionFormat) {
-				fmt.Printf("✓ Format '%s' is execution-ready, skipping ONNX conversion\n", manifest.Spec.Format.ExecutionFormat)
+			// IMPORTANT: We verify actual files exist on disk, not just trust manifest
+			if converter.IsExecutionReadyWithPath(manifest.Spec.Format.ExecutionFormat, cachePath) {
+				fmt.Printf("✓ Format '%s' is execution-ready (verified files exist), skipping ONNX conversion\n", manifest.Spec.Format.ExecutionFormat)
 			} else {
 				// Attempt ONNX conversion (pure Go first, Python optional)
 				// This adds model.onnx (or multiple ONNX files for multi-encoder models)

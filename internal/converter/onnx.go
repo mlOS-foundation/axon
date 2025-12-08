@@ -387,6 +387,7 @@ func CanConvert(framework string) bool {
 
 // IsExecutionReady checks if a format is already execution-ready (no conversion needed)
 // These formats can be used directly by MLOS Core without ONNX conversion
+// DEPRECATED: Use IsExecutionReadyWithPath instead to verify actual files exist
 func IsExecutionReady(format string) bool {
 	if format == "" {
 		return false
@@ -411,6 +412,49 @@ func IsExecutionReady(format string) bool {
 	}
 
 	return false
+}
+
+// IsExecutionReadyWithPath checks if execution-ready files actually exist on disk
+// This prevents skipping ONNX conversion when manifest says "onnx" but no ONNX files exist
+func IsExecutionReadyWithPath(format string, modelPath string) bool {
+	if format == "" || modelPath == "" {
+		return false
+	}
+
+	formatLower := strings.ToLower(format)
+
+	switch formatLower {
+	case "gguf":
+		// Check for actual .gguf files
+		entries, err := os.ReadDir(modelPath)
+		if err != nil {
+			return false
+		}
+		for _, entry := range entries {
+			if strings.HasSuffix(strings.ToLower(entry.Name()), ".gguf") {
+				return true
+			}
+		}
+		return false
+
+	case "onnx":
+		// Check for actual .onnx files (in root or onnx/ subdirectory)
+		onnxFiles, err := FindONNXFiles(modelPath)
+		if err != nil || len(onnxFiles) == 0 {
+			return false
+		}
+		// Verify at least one ONNX file is valid (non-empty)
+		for _, f := range onnxFiles {
+			if info, err := os.Stat(f); err == nil && info.Size() > 0 {
+				return true
+			}
+		}
+		return false
+
+	default:
+		// Other formats need conversion
+		return false
+	}
 }
 
 // FindONNXFiles finds all ONNX files in a directory (including onnx/ subdirectory).
