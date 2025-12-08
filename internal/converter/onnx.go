@@ -385,6 +385,34 @@ func CanConvert(framework string) bool {
 	return false
 }
 
+// IsExecutionReady checks if a format is already execution-ready (no conversion needed)
+// These formats can be used directly by MLOS Core without ONNX conversion
+func IsExecutionReady(format string) bool {
+	if format == "" {
+		return false
+	}
+
+	formatLower := strings.ToLower(format)
+
+	// Formats that Core can execute directly (has runtime plugins)
+	// Note: Only formats with actual Core runtime plugins should be here
+	ready := []string{
+		"gguf", // Native LLM format (llama.cpp) - Core GGUF plugin
+		"onnx", // ONNX format - Core ONNX Runtime plugin
+		// "safetensors" - Not yet supported by Core (no plugin)
+		// "pytorch" - Needs ONNX conversion
+		// "tensorflow" - Needs ONNX conversion
+	}
+
+	for _, f := range ready {
+		if formatLower == f {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FindONNXFiles finds all ONNX files in a directory (including onnx/ subdirectory).
 // Optimum creates multi-encoder model files (T5, CLIP, etc.) in an onnx/ subdirectory.
 func FindONNXFiles(dir string) ([]string, error) {
