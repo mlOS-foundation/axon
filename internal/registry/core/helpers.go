@@ -242,17 +242,34 @@ func UpdateManifestWithIOSchema(manifest *types.Manifest, modelPath string) erro
 
 // UpdateManifestWithExecutionFormat updates manifest with execution format based on available files
 func UpdateManifestWithExecutionFormat(manifest *types.Manifest, modelPath string) error {
-	// Check for ONNX file first (highest priority)
+	// Check for GGUF files first (native LLM format - no conversion needed)
+	files, err := os.ReadDir(modelPath)
+	if err == nil {
+		for _, file := range files {
+			name := strings.ToLower(file.Name())
+			if strings.HasSuffix(name, ".gguf") {
+				manifest.Spec.Format.ExecutionFormat = "gguf"
+				manifest.Spec.Format.Type = "gguf"
+				return nil
+			}
+		}
+	}
+
+	// Check for ONNX file (second priority - already execution-ready)
 	if _, err := os.Stat(filepath.Join(modelPath, "model.onnx")); err == nil {
 		manifest.Spec.Format.ExecutionFormat = "onnx"
 		return nil
 	}
 
-	// Check for PyTorch files
-	files, err := os.ReadDir(modelPath)
+	// Check for other format files
 	if err == nil {
 		for _, file := range files {
 			name := strings.ToLower(file.Name())
+			// SafeTensors files (no conversion needed for Core's format detection)
+			if strings.HasSuffix(name, ".safetensors") {
+				manifest.Spec.Format.ExecutionFormat = "safetensors"
+				return nil
+			}
 			// PyTorch files
 			if strings.Contains(name, "pytorch") || strings.HasSuffix(name, ".pth") || strings.HasSuffix(name, ".pt") || strings.HasSuffix(name, ".bin") {
 				manifest.Spec.Format.ExecutionFormat = "pytorch"
@@ -275,6 +292,10 @@ func UpdateManifestWithExecutionFormat(manifest *types.Manifest, modelPath strin
 	// Use manifest type as hint if no files match
 	if manifest.Spec.Format.ExecutionFormat == "" {
 		switch strings.ToLower(manifest.Spec.Format.Type) {
+		case "gguf":
+			manifest.Spec.Format.ExecutionFormat = "gguf"
+		case "safetensors":
+			manifest.Spec.Format.ExecutionFormat = "safetensors"
 		case "pytorch", "torch":
 			manifest.Spec.Format.ExecutionFormat = "pytorch"
 		case "tensorflow", "saved_model", "tf":

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mlOS-foundation/axon/internal/registry/core"
@@ -219,26 +220,39 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	defer builder.Cleanup()
 
 	// Get model file list from Hugging Face API
-	modelFiles, err := h.getModelFiles(ctx, hfModelID)
+	allFiles, err := h.getModelFiles(ctx, hfModelID)
 	if err != nil {
 		// Fallback to common files if API fails
-		modelFiles = []string{"config.json", "pytorch_model.bin", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+		allFiles = []string{"config.json", "pytorch_model.bin", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
 	}
 
-	// Ensure tokenizer files are included
-	tokenizerFiles := []string{"tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
-	for _, tokenizerFile := range tokenizerFiles {
-		// Check if already in list
-		found := false
-		for _, file := range modelFiles {
-			if file == tokenizerFile {
-				found = true
-				break
+	// Detect best format and select appropriate files
+	// Priority: GGUF > ONNX > SafeTensors > PyTorch (reduces download size and skips conversion)
+	formatType, modelFiles := h.detectModelFormat(allFiles)
+	if formatType != "unknown" && formatType != "pytorch" {
+		fmt.Printf("✓ Detected %s format, selecting optimized file set\n", strings.ToUpper(formatType))
+		// Update manifest with detected format
+		manifest.Spec.Format.Type = formatType
+		manifest.Spec.Format.ExecutionFormat = formatType
+	}
+
+	// Ensure tokenizer files are included for non-GGUF formats
+	// (GGUF models have tokenizer embedded)
+	if formatType != "gguf" {
+		tokenizerFiles := []string{"tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+		for _, tokenizerFile := range tokenizerFiles {
+			// Check if already in list
+			found := false
+			for _, file := range modelFiles {
+				if file == tokenizerFile {
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			// Try to add tokenizer file (will be skipped if not available)
-			modelFiles = append(modelFiles, tokenizerFile)
+			if !found {
+				// Try to add tokenizer file (will be skipped if not available)
+				modelFiles = append(modelFiles, tokenizerFile)
+			}
 		}
 	}
 
@@ -333,4 +347,69 @@ func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) 
 	}
 
 	return files, nil
+}
+
+// detectModelFormat analyzes file list and returns the best format to use.
+// Priority: GGUF > ONNX > SafeTensors > PyTorch
+// Returns the format type and list of files to download
+func (h *HuggingFaceAdapter) detectModelFormat(files []string) (string, []string) {
+	var ggufFiles, onnxFiles, safetensorFiles, pytorchFiles, configFiles []string
+
+	for _, file := range files {
+		lower := strings.ToLower(file)
+		switch {
+		case strings.HasSuffix(lower, ".gguf"):
+			ggufFiles = append(ggufFiles, file)
+		case strings.HasSuffix(lower, ".onnx"):
+			onnxFiles = append(onnxFiles, file)
+		case strings.HasSuffix(lower, ".safetensors"):
+			safetensorFiles = append(safetensorFiles, file)
+		case strings.HasSuffix(lower, ".bin") || strings.HasSuffix(lower, ".pt") || strings.HasSuffix(lower, ".pth"):
+			pytorchFiles = append(pytorchFiles, file)
+		case strings.HasSuffix(lower, ".json") || strings.HasSuffix(lower, ".txt"):
+			configFiles = append(configFiles, file)
+		}
+	}
+
+	// Prioritize execution-ready formats
+	if len(ggufFiles) > 0 {
+		// For GGUF, pick the best quantized version (Q4_K_M is a good default)
+		selected := selectBestGGUF(ggufFiles)
+		return "gguf", append([]string{selected}, configFiles...)
+	}
+
+	if len(onnxFiles) > 0 {
+		// ONNX is already execution-ready
+		return "onnx", append(onnxFiles, configFiles...)
+	}
+
+	if len(safetensorFiles) > 0 {
+		// SafeTensors can be used by Core's format detection
+		return "safetensors", append(safetensorFiles, configFiles...)
+	}
+
+	if len(pytorchFiles) > 0 {
+		// PyTorch needs conversion
+		return "pytorch", append(pytorchFiles, configFiles...)
+	}
+
+	// Fallback: return all files
+	return "unknown", files
+}
+
+// selectBestGGUF picks the best GGUF file from a list.
+// Prefers Q4_K_M (good balance of quality/size), then Q4_K_S, then any Q4, then first available.
+func selectBestGGUF(files []string) string {
+	preferences := []string{"q4_k_m", "q4_k_s", "q4_0", "q5_k_m", "q8_0"}
+
+	for _, pref := range preferences {
+		for _, file := range files {
+			if strings.Contains(strings.ToLower(file), pref) {
+				return file
+			}
+		}
+	}
+
+	// Return first GGUF file if no preference matched
+	return files[0]
 }
