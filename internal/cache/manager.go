@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/mlOS-foundation/axon/pkg/types"
 )
 
@@ -67,14 +69,13 @@ func (cm *Manager) CacheModel(namespace, name, version string, manifest *types.M
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	// Save manifest
+	// Save manifest as YAML (matches parser expectations)
 	manifestPath := filepath.Join(path, "manifest.yaml")
-	manifestData, err := json.MarshalIndent(manifest, "", "  ")
+	manifestData, err := yaml.Marshal(manifest)
 	if err != nil {
 		return fmt.Errorf("failed to marshal manifest: %w", err)
 	}
 
-	// For now, save as JSON - will switch to YAML when parser is integrated
 	if err := os.WriteFile(manifestPath, manifestData, 0644); err != nil {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/mlOS-foundation/axon/internal/cache"
 	"github.com/mlOS-foundation/axon/internal/config"
@@ -59,10 +60,10 @@ func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
 	return nil
 }
 
-// saveManifest saves manifest to file
-// Uses JSON format to match CacheModel's format
+// saveManifest saves manifest to file in YAML format
+// Uses YAML to match manifest parser expectations (manifest.ParseBytes uses yaml.Unmarshal)
 func saveManifest(m *types.Manifest, path string) error {
-	data, err := json.MarshalIndent(m, "", "  ")
+	data, err := yaml.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("failed to marshal manifest: %w", err)
 	}
@@ -979,10 +980,12 @@ func registerCmd() *cobra.Command {
 			// Build registration payload
 			// Note: We send manifest_path instead of the full manifest JSON
 			// MLOS Core will read the manifest from the path
+			// execution_format tells Core which runtime plugin to use (onnx, gguf, tflite, etc.)
 			payload := fmt.Sprintf(`{
 				"model_id": "%s/%s@%s",
 				"name": "%s",
 				"framework": "%s",
+				"execution_format": "%s",
 				"path": "%s",
 				"description": "%s",
 				"manifest_path": "%s"
@@ -995,6 +998,7 @@ func registerCmd() *cobra.Command {
 				}(),
 				manifestObj.Metadata.Name,
 				manifestObj.Spec.Framework.Name,
+				manifestObj.Spec.Format.ExecutionFormat,
 				modelPath,
 				manifestObj.Metadata.Description,
 				manifestPath,
