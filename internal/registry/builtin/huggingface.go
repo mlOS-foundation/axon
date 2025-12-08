@@ -350,7 +350,11 @@ func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) 
 }
 
 // detectModelFormat analyzes file list and returns the best format to use.
-// Priority: GGUF > ONNX > SafeTensors > PyTorch
+// Priority for Core-compatible formats:
+//  1. GGUF - Native LLM format (llama.cpp plugin)
+//  2. ONNX - Direct execution (ONNX Runtime plugin)
+//  3. SafeTensors/PyTorch - Need ONNX conversion
+//
 // Returns the format type and list of files to download
 func (h *HuggingFaceAdapter) detectModelFormat(files []string) (string, []string) {
 	var ggufFiles, onnxFiles, safetensorFiles, pytorchFiles, configFiles []string
@@ -371,29 +375,32 @@ func (h *HuggingFaceAdapter) detectModelFormat(files []string) (string, []string
 		}
 	}
 
-	// Prioritize execution-ready formats
+	// Priority 1: GGUF - Core has native llama.cpp plugin
+	// Best for LLMs, no conversion needed
 	if len(ggufFiles) > 0 {
-		// For GGUF, pick the best quantized version (Q4_K_M is a good default)
 		selected := selectBestGGUF(ggufFiles)
 		return "gguf", append([]string{selected}, configFiles...)
 	}
 
+	// Priority 2: ONNX - Core has ONNX Runtime plugin
+	// Already execution-ready, no conversion needed
 	if len(onnxFiles) > 0 {
-		// ONNX is already execution-ready
 		return "onnx", append(onnxFiles, configFiles...)
 	}
 
+	// Priority 3: SafeTensors - Preferred over PyTorch .bin files
+	// Needs ONNX conversion but safer/faster to load than pickle
 	if len(safetensorFiles) > 0 {
-		// SafeTensors can be used by Core's format detection
 		return "safetensors", append(safetensorFiles, configFiles...)
 	}
 
+	// Priority 4: PyTorch - Traditional format
+	// Needs ONNX conversion
 	if len(pytorchFiles) > 0 {
-		// PyTorch needs conversion
 		return "pytorch", append(pytorchFiles, configFiles...)
 	}
 
-	// Fallback: return all files
+	// Fallback: return all files (will need manual handling)
 	return "unknown", files
 }
 

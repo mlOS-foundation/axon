@@ -394,11 +394,14 @@ func IsExecutionReady(format string) bool {
 
 	formatLower := strings.ToLower(format)
 
-	// Formats that are already execution-ready
+	// Formats that Core can execute directly (has runtime plugins)
+	// Note: Only formats with actual Core runtime plugins should be here
 	ready := []string{
-		"gguf",        // Native LLM format (llama.cpp)
-		"onnx",        // Already ONNX
-		"safetensors", // Core has format detection for safetensors
+		"gguf", // Native LLM format (llama.cpp) - Core GGUF plugin
+		"onnx", // ONNX format - Core ONNX Runtime plugin
+		// "safetensors" - Not yet supported by Core (no plugin)
+		// "pytorch" - Needs ONNX conversion
+		// "tensorflow" - Needs ONNX conversion
 	}
 
 	for _, f := range ready {
