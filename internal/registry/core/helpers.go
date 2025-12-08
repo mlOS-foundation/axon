@@ -359,14 +359,15 @@ func DownloadFile(ctx context.Context, client *http.Client, url, destPath string
 	var current int64
 
 	if progress != nil && total > 0 {
-		// Use TeeReader to track progress
-		reader := io.TeeReader(resp.Body, &progressWriter{
+		// Use progressWriter to track progress while writing to file
+		// Note: progressWriter.Write() writes to file AND tracks progress
+		pw := &progressWriter{
 			writer:   file,
 			progress: progress,
 			total:    total,
 			current:  &current,
-		})
-		_, err = io.Copy(file, reader)
+		}
+		_, err = io.Copy(pw, resp.Body)
 	} else {
 		_, err = io.Copy(file, resp.Body)
 	}
