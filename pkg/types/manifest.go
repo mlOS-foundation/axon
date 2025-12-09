@@ -53,10 +53,19 @@ type Framework struct {
 
 // Format describes the model file format
 type Format struct {
-	Type            string      `yaml:"type" json:"type"`                                       // Original format (pytorch, tensorflow)
-	ExecutionFormat string      `yaml:"execution_format" json:"execution_format"`               // Execution format (onnx, pytorch, tensorflow)
-	MultiEncoder    string      `yaml:"multi_encoder,omitempty" json:"multi_encoder,omitempty"` // Architecture for multi-encoder models (clip, seq2seq)
-	Files           []ModelFile `yaml:"files" json:"files"`
+	Type            string          `yaml:"type" json:"type"`                                       // Original format (pytorch, tensorflow)
+	ExecutionFormat string          `yaml:"execution_format" json:"execution_format"`               // Execution format (onnx, gguf, tflite, etc.)
+	MultiEncoder    string          `yaml:"multi_encoder,omitempty" json:"multi_encoder,omitempty"` // Architecture for multi-encoder models (clip, seq2seq)
+	Files           []ModelFile     `yaml:"files" json:"files"`
+	ExecutionFiles  []ExecutionFile `yaml:"execution_files,omitempty" json:"execution_files,omitempty"` // Explicit paths for execution files (ONNX, GGUF, etc.)
+}
+
+// ExecutionFile represents a model file for execution by Core
+// Supports any format: ONNX, GGUF, TFLite, CoreML, etc.
+type ExecutionFile struct {
+	Path   string `yaml:"path" json:"path"`     // Relative path from model root (e.g., "onnx/model.onnx", "model.Q4_K_M.gguf")
+	Format string `yaml:"format" json:"format"` // File format: "onnx", "gguf", "tflite", "coreml", etc.
+	Type   string `yaml:"type" json:"type"`     // Role: "single", "encoder", "decoder", "text_encoder", "vision_encoder"
 }
 
 // ModelFile represents a file in the model package

@@ -47,6 +47,13 @@ func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
 		return fmt.Errorf("failed to update execution format: %w", err)
 	}
 
+	// Populate ExecutionFiles with explicit paths for Core
+	// This eliminates path guessing and supports any format (ONNX, GGUF, TFLite, etc.)
+	if err := populateExecutionFiles(modelPath, m); err != nil {
+		// Non-fatal: log warning but continue
+		fmt.Printf("⚠️  Failed to populate execution files: %v\n", err)
+	}
+
 	// Try to extract I/O schema from config.json if available
 	configPath := filepath.Join(modelPath, "config.json")
 	if _, err := os.Stat(configPath); err == nil {
@@ -58,6 +65,181 @@ func updateManifestAfterInstall(modelPath string, m *types.Manifest) error {
 	}
 
 	return nil
+}
+
+// populateExecutionFiles discovers and populates ExecutionFiles in the manifest
+// This provides explicit paths for Core to use, eliminating directory guessing
+func populateExecutionFiles(modelPath string, m *types.Manifest) error {
+	var execFiles []types.ExecutionFile
+
+	// Find ONNX files
+	onnxFiles, err := converter.FindONNXFiles(modelPath)
+	if err == nil && len(onnxFiles) > 0 {
+		// Check for multi-encoder manifest to get proper file types
+		multiEncoderManifest, hasMultiEncoder := converter.CheckForMultiEncoderManifest(modelPath)
+
+		for _, fullPath := range onnxFiles {
+			// Get relative path from model root
+			relPath, err := filepath.Rel(modelPath, fullPath)
+			if err != nil {
+				relPath = filepath.Base(fullPath)
+			}
+
+			// Determine file type (role)
+			fileType := determineONNXFileType(relPath, multiEncoderManifest, hasMultiEncoder)
+
+			execFiles = append(execFiles, types.ExecutionFile{
+				Path:   relPath,
+				Format: "onnx",
+				Type:   fileType,
+			})
+		}
+	}
+
+	// Find GGUF files
+	ggufFiles, err := findGGUFFiles(modelPath)
+	if err == nil && len(ggufFiles) > 0 {
+		for _, fullPath := range ggufFiles {
+			relPath, err := filepath.Rel(modelPath, fullPath)
+			if err != nil {
+				relPath = filepath.Base(fullPath)
+			}
+
+			execFiles = append(execFiles, types.ExecutionFile{
+				Path:   relPath,
+				Format: "gguf",
+				Type:   "single", // GGUF models are always single-file LLMs
+			})
+		}
+	}
+
+	// Find TFLite files
+	tfliteFiles, err := findFilesWithExtension(modelPath, ".tflite")
+	if err == nil && len(tfliteFiles) > 0 {
+		for _, fullPath := range tfliteFiles {
+			relPath, err := filepath.Rel(modelPath, fullPath)
+			if err != nil {
+				relPath = filepath.Base(fullPath)
+			}
+
+			execFiles = append(execFiles, types.ExecutionFile{
+				Path:   relPath,
+				Format: "tflite",
+				Type:   "single",
+			})
+		}
+	}
+
+	// Find CoreML files (.mlmodel or .mlpackage directories)
+	coremlFiles, err := findCoreMLFiles(modelPath)
+	if err == nil && len(coremlFiles) > 0 {
+		for _, fullPath := range coremlFiles {
+			relPath, err := filepath.Rel(modelPath, fullPath)
+			if err != nil {
+				relPath = filepath.Base(fullPath)
+			}
+
+			execFiles = append(execFiles, types.ExecutionFile{
+				Path:   relPath,
+				Format: "coreml",
+				Type:   "single",
+			})
+		}
+	}
+
+	// Set ExecutionFiles in manifest if any were found
+	if len(execFiles) > 0 {
+		m.Spec.Format.ExecutionFiles = execFiles
+	}
+
+	return nil
+}
+
+// determineONNXFileType determines the role of an ONNX file (single, encoder, decoder, etc.)
+func determineONNXFileType(relPath string, multiEncoderManifest *converter.MultiEncoderManifest, hasMultiEncoder bool) string {
+	baseName := strings.ToLower(filepath.Base(relPath))
+
+	// If we have a multi-encoder manifest, use it to determine type
+	if hasMultiEncoder && multiEncoderManifest != nil {
+		// Check architecture type
+		switch multiEncoderManifest.Architecture {
+		case "seq2seq":
+			if strings.Contains(baseName, "encoder") {
+				return "encoder"
+			}
+			if strings.Contains(baseName, "decoder") {
+				return "decoder"
+			}
+		case "clip":
+			if strings.Contains(baseName, "text") {
+				return "text_encoder"
+			}
+			if strings.Contains(baseName, "vision") {
+				return "vision_encoder"
+			}
+		}
+	}
+
+	// Heuristic detection based on filename
+	if strings.Contains(baseName, "encoder") && !strings.Contains(baseName, "decoder") {
+		if strings.Contains(baseName, "text") {
+			return "text_encoder"
+		}
+		if strings.Contains(baseName, "vision") {
+			return "vision_encoder"
+		}
+		return "encoder"
+	}
+	if strings.Contains(baseName, "decoder") {
+		return "decoder"
+	}
+
+	return "single"
+}
+
+// findGGUFFiles finds all GGUF files in a directory
+func findGGUFFiles(dir string) ([]string, error) {
+	return findFilesWithExtension(dir, ".gguf")
+}
+
+// findFilesWithExtension finds all files with a specific extension in a directory
+func findFilesWithExtension(dir string, ext string) ([]string, error) {
+	var files []string
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ext) {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+
+	return files, nil
+}
+
+// findCoreMLFiles finds CoreML models (.mlmodel files or .mlpackage directories)
+func findCoreMLFiles(dir string) ([]string, error) {
+	var files []string
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		name := strings.ToLower(entry.Name())
+		// .mlmodel files
+		if !entry.IsDir() && strings.HasSuffix(name, ".mlmodel") {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+		// .mlpackage directories
+		if entry.IsDir() && strings.HasSuffix(name, ".mlpackage") {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+
+	return files, nil
 }
 
 // saveManifest saves manifest to file in YAML format
