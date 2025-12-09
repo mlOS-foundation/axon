@@ -234,15 +234,7 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Trigger Docker Converter Workflow
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "🚀 Triggering Docker converter workflow for v${{ steps.get_version.outputs.version }}"
-          gh api repos/${{ github.repository }}/dispatches \
-            -X POST \
-            -f event_type='build-docker-image' \
-            -f client_payload[version]="${{ steps.get_version.outputs.version }}" \
-            -f client_payload[tag]="v${{ steps.get_version.outputs.version }}"
-          echo "✅ Docker converter workflow triggered"
+      # Note: Docker converter workflow is automatically triggered by the
+      # "release: published" event in docker-converter.yml when the release
+      # is created above. No manual dispatch needed.
 
