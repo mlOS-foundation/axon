@@ -451,6 +451,24 @@ func IsExecutionReadyWithPath(format string, modelPath string) bool {
 		}
 		return false
 
+	case "pytorch", "torchscript":
+		// Check for actual .pt/.pth files (TorchScript models)
+		entries, err := os.ReadDir(modelPath)
+		if err != nil {
+			return false
+		}
+		for _, entry := range entries {
+			nameLower := strings.ToLower(entry.Name())
+			if strings.HasSuffix(nameLower, ".pt") || strings.HasSuffix(nameLower, ".pth") {
+				// Verify file is non-empty
+				filePath := filepath.Join(modelPath, entry.Name())
+				if info, err := os.Stat(filePath); err == nil && info.Size() > 0 {
+					return true
+				}
+			}
+		}
+		return false
+
 	default:
 		// Other formats need conversion
 		return false
