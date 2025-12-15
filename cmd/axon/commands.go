@@ -617,14 +617,22 @@ func formatBytes(bytes int64) string {
 }
 
 func installCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "install [namespace/name[@version]]",
 		Short: "Install a model",
-		Long:  "Propagate a model through the axon pathway into your local system",
-		Args:  cobra.ExactArgs(1),
+		Long: `Propagate a model through the axon pathway into your local system.
+
+The --format flag controls the target execution format:
+  auto      Auto-detect and convert to ONNX if needed (default)
+  pytorch   Keep native PyTorch format (TorchScript .pt/.pth files)
+  onnx      Convert to ONNX format
+  gguf      Keep native GGUF format (for LLMs)
+  native    Skip conversion, use original format`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			modelSpec := args[0]
 			namespace, name, version := parseModelSpec(modelSpec)
+			targetFormat, _ := cmd.Flags().GetString("format")
 
 			if namespace == "" || name == "" {
 				return fmt.Errorf("invalid model specification: %s (expected: namespace/name[@version])", modelSpec)
@@ -713,10 +721,27 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("failed to extract package: %w", err)
 			}
 
-			// Check if format is already execution-ready (GGUF, ONNX)
-			// These formats can be used directly by MLOS Core without conversion
-			// IMPORTANT: We verify actual files exist on disk, not just trust manifest
-			if converter.IsExecutionReadyWithPath(manifest.Spec.Format.ExecutionFormat, cachePath) {
+			// Handle format conversion based on --format flag
+			// pytorch/native: skip conversion, use original format
+			// gguf: already execution-ready
+			// onnx: convert to ONNX if not already
+			// auto: auto-detect and convert if needed
+			skipConversion := targetFormat == "pytorch" || targetFormat == "native"
+			if skipConversion {
+				fmt.Printf("✓ Format '%s' requested - skipping ONNX conversion\n", targetFormat)
+				// Set execution format to match the model's original format
+				if targetFormat == "pytorch" {
+					manifest.Spec.Format.ExecutionFormat = "pytorch"
+				} else {
+					// native - keep original format
+					if manifest.Spec.Format.ExecutionFormat == "" {
+						manifest.Spec.Format.ExecutionFormat = manifest.Spec.Format.Type
+					}
+				}
+			} else if converter.IsExecutionReadyWithPath(manifest.Spec.Format.ExecutionFormat, cachePath) {
+				// Check if format is already execution-ready (GGUF, ONNX, PyTorch)
+				// These formats can be used directly by MLOS Core without conversion
+				// IMPORTANT: We verify actual files exist on disk, not just trust manifest
 				fmt.Printf("✓ Format '%s' is execution-ready (verified files exist), skipping ONNX conversion\n", manifest.Spec.Format.ExecutionFormat)
 			} else {
 				// Attempt ONNX conversion (pure Go first, Python optional)
@@ -776,6 +801,9 @@ func installCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringP("format", "f", "auto", "Target format: auto, pytorch, onnx, gguf, native")
+	return cmd
 }
 
 func listCmd() *cobra.Command {
