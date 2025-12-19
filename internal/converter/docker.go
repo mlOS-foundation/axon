@@ -145,15 +145,19 @@ func ConvertToONNXWithDocker(ctx context.Context, modelPath, framework, namespac
 	// Build Docker command
 	// Volume mapping: host cache dir -> /axon/cache in container
 	// Working directory: /axon/cache (so relative paths work)
+	// IMPORTANT: Use absolute container paths to avoid Optimum/HuggingFace
+	// misinterpreting relative paths like "latest" as model IDs
+	containerModelPath := "/axon/cache/" + relModelPath
+	containerOutputPath := "/axon/cache/" + relOutputPath
 	dockerArgs := []string{
 		"run", "--rm",
 		"-v", fmt.Sprintf("%s:/axon/cache", absCacheDir),
 		"-w", "/axon/cache",
 		imageName,
 		fmt.Sprintf("/axon/scripts/%s", scriptName),
-		relModelPath,  // Model path (relative to cache)
-		relOutputPath, // Output path (relative to cache)
-		modelID,       // Model ID for repository lookup
+		containerModelPath,  // Absolute container path to model
+		containerOutputPath, // Absolute container path for output
+		modelID,             // Model ID for repository lookup (e.g., "microsoft/resnet-50")
 	}
 
 	fmt.Printf("🐳 Converting model using Docker (%s)...\n", imageName)

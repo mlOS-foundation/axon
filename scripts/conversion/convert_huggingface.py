@@ -828,10 +828,10 @@ if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: convert_huggingface.py <model_path> <output_path> <model_id>")
         sys.exit(1)
-    
+
     model_path = sys.argv[1]
     output_path = sys.argv[2]
     axon_model_id = sys.argv[3]
-    
+
     success = convert_huggingface_to_onnx(model_path, output_path, axon_model_id)
     sys.exit(0 if success else 1)
