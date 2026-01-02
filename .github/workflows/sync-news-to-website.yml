@@ -1,0 +1,200 @@
+name: Sync News to Website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/news/**/*.json'
+      - 'docs/news/**/*.md'
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync all news items'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect-news-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+      news_files: ${{ steps.check.outputs.news_files }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for news changes
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.force_sync }}" = "true" ]; then
+            echo "Force sync requested"
+            NEWS_FILES=$(find docs/news -name "*.json" -type f 2>/dev/null | sort -r | head -20 | tr '\n' ' ')
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "news_files=$NEWS_FILES" >> $GITHUB_OUTPUT
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'docs/news/**/*.json' 'docs/news/**/*.md' 2>/dev/null || echo "")
+            if [ -n "$CHANGED" ]; then
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "news_files=$CHANGED" >> $GITHUB_OUTPUT
+              echo "Changed news files:"
+              echo "$CHANGED"
+            else
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              echo "news_files=" >> $GITHUB_OUTPUT
+              echo "No news changes detected"
+            fi
+          fi
+
+  validate-news:
+    needs: detect-news-changes
+    if: needs.detect-news-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ajv-cli for JSON schema validation
+        run: npm install -g ajv-cli
+
+      - name: Validate news entries against schema
+        run: |
+          SCHEMA_FILE="docs/news/news-schema.json"
+
+          if [ ! -f "$SCHEMA_FILE" ]; then
+            echo "⚠️ Schema file not found, skipping validation"
+            exit 0
+          fi
+
+          echo "Validating news entries against schema..."
+          ERRORS=0
+
+          for file in docs/news/entries/*.json; do
+            if [ -f "$file" ]; then
+              echo "Validating: $file"
+              if ! ajv validate -s "$SCHEMA_FILE" -d "$file" 2>&1; then
+                echo "❌ Validation failed for $file"
+                ERRORS=$((ERRORS + 1))
+              else
+                echo "✅ Valid: $file"
+              fi
+            fi
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo "❌ $ERRORS validation errors found"
+            exit 1
+          fi
+
+          echo "✅ All news entries are valid"
+
+  build-news-feed:
+    needs: [detect-news-changes, validate-news]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build aggregated news feed
+        run: |
+          echo "Building aggregated news feed..."
+          mkdir -p /tmp/news-feed
+
+          echo '{"source": "axon", "repo": "mlOS-foundation/axon", "generated_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "entries": [' > /tmp/news-feed/axon-news.json
+
+          FIRST=true
+          for file in $(find docs/news/entries -name "*.json" -type f 2>/dev/null | sort -r); do
+            if [ -f "$file" ]; then
+              if [ "$FIRST" = "true" ]; then
+                FIRST=false
+              else
+                echo "," >> /tmp/news-feed/axon-news.json
+              fi
+              cat "$file" >> /tmp/news-feed/axon-news.json
+            fi
+          done
+
+          echo ']}' >> /tmp/news-feed/axon-news.json
+
+          echo "📰 Generated news feed:"
+          cat /tmp/news-feed/axon-news.json | head -100
+
+          cp /tmp/news-feed/axon-news.json $GITHUB_WORKSPACE/axon-news.json
+
+      - name: Upload news feed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-feed
+          path: axon-news.json
+          retention-days: 7
+
+  trigger-website-update:
+    needs: build-news-feed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PAT is Set
+        run: |
+          if [ -z "${{ secrets.WEBSITE_DISPATCH_TOKEN }}" ]; then
+            echo "⚠️ WEBSITE_DISPATCH_TOKEN not set"
+            echo ""
+            echo "To enable website sync:"
+            echo "  1. Create PAT with 'repo' scope: https://github.com/settings/tokens"
+            echo "  2. Add as secret 'WEBSITE_DISPATCH_TOKEN' in axon repo settings"
+            echo ""
+            echo "Skipping website trigger (news feed artifact is still available)"
+            exit 0
+          fi
+          echo "✅ WEBSITE_DISPATCH_TOKEN is set"
+
+      - name: Download news feed
+        uses: actions/download-artifact@v4
+        with:
+          name: news-feed
+
+      - name: Trigger website repository dispatch
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          echo "📡 Triggering website update..."
+
+          NEWS_CONTENT=$(cat axon-news.json | base64 -w 0)
+
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/mlOS-foundation/mlosfoundation.org/dispatches \
+            -d '{
+              "event_type": "news-update",
+              "client_payload": {
+                "source": "axon",
+                "repo": "mlOS-foundation/axon",
+                "commit": "${{ github.sha }}",
+                "ref": "${{ github.ref }}",
+                "news_content_base64": "'"$NEWS_CONTENT"'"
+              }
+            }'
+
+          echo "✅ Website update triggered"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📰 News Sync Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Source: mlOS-foundation/axon"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
