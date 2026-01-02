@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mlosfoundation.org/schemas/news-entry.json",
+  "title": "MLOS News Entry",
+  "description": "Schema for news/announcement entries in MLOS Foundation repositories",
+  "type": "object",
+  "required": ["id", "title", "date", "type", "summary"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the news entry",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the news item",
+      "minLength": 10,
+      "maxLength": 200
+    },
+    "date": {
+      "type": "string",
+      "description": "Publication date in ISO 8601 format",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "type": {
+      "type": "string",
+      "description": "Type of news item",
+      "enum": ["release", "announcement", "security", "milestone", "event", "blog"]
+    },
+    "featured": {
+      "type": "boolean",
+      "description": "Whether this is a featured/highlighted news item",
+      "default": false
+    },
+    "badge": {
+      "type": "string",
+      "description": "Badge text to display",
+      "maxLength": 30
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary of the news item",
+      "minLength": 20,
+      "maxLength": 500
+    },
+    "content": {
+      "type": "string",
+      "description": "Full content in Markdown format"
+    },
+    "version": {
+      "type": "string",
+      "description": "Version number if this is a release announcement",
+      "pattern": "^v?\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$"
+    },
+    "features": {
+      "type": "array",
+      "description": "List of key features",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "links": {
+      "type": "array",
+      "description": "Related links",
+      "items": {
+        "type": "object",
+        "required": ["text", "url"],
+        "properties": {
+          "text": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "primary": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_repo": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9-]+/[a-zA-Z0-9-_.]+$"
+    }
+  },
+  "additionalProperties": false
+}
