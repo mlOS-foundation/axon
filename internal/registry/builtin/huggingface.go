@@ -220,10 +220,36 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	defer builder.Cleanup()
 
 	// Get model file list from Hugging Face API
-	allFiles, err := h.getModelFiles(ctx, hfModelID)
+	allFiles, correctedModelID, err := h.getModelFiles(ctx, hfModelID)
 	if err != nil {
 		// Fallback to common files if API fails
-		allFiles = []string{"config.json", "pytorch_model.bin", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "vocab.json"}
+		// Include both NLP model files and vision/detection model files
+		allFiles = []string{
+			// NLP/Transformer model files
+			"config.json",
+			"pytorch_model.bin",
+			"model.safetensors",
+			"tokenizer.json",
+			"tokenizer_config.json",
+			"vocab.txt",
+			"vocab.json",
+			// Vision/Detection model files (YOLO, etc.)
+			"model.pt",
+			"weights.pt",
+			"best.pt",
+			// ONNX formats
+			"model.onnx",
+		}
+
+		// Also try the model name itself as a .pt file (e.g., "yolov8n" -> "yolov8n.pt")
+		// This handles cases like ultralytics/YOLOv8 where individual models are files
+		modelName := manifest.Metadata.Name
+		if !strings.HasSuffix(strings.ToLower(modelName), ".pt") {
+			allFiles = append(allFiles, modelName+".pt")
+		}
+	} else {
+		// Use the corrected model ID (in case a variation was found)
+		hfModelID = correctedModelID
 	}
 
 	// Detect best format and select appropriate files
@@ -259,16 +285,18 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	// Download files from Hugging Face
 	httpClient := &http.Client{Timeout: 10 * time.Minute}
 	downloadedFiles := []string{}
+	failedFiles := []string{}
 
 	for _, file := range modelFiles {
 		url := fmt.Sprintf("%s/%s/resolve/main/%s", h.baseURL, hfModelID, file)
 
 		// Create temp file for download
-		tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("axon-hf-%s-%d", file, time.Now().UnixNano()))
+		tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("axon-hf-%s-%d", filepath.Base(file), time.Now().UnixNano()))
 
 		// Add auth header if token is provided
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
+			failedFiles = append(failedFiles, file)
 			continue
 		}
 		if h.token != "" {
@@ -280,12 +308,14 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 			if resp != nil {
 				_ = resp.Body.Close()
 			}
+			failedFiles = append(failedFiles, file)
 			continue // Skip missing files
 		}
 
 		// Download file
 		if err := core.DownloadFile(ctx, httpClient, url, tempFile, progress); err != nil {
 			_ = resp.Body.Close()
+			failedFiles = append(failedFiles, file)
 			continue
 		}
 		_ = resp.Body.Close()
@@ -293,6 +323,7 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 		// Add to package
 		if err := builder.AddFile(tempFile, file); err != nil {
 			_ = os.Remove(tempFile)
+			failedFiles = append(failedFiles, file)
 			continue
 		}
 
@@ -301,7 +332,10 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 	}
 
 	if len(downloadedFiles) == 0 {
-		return fmt.Errorf("no files downloaded from Hugging Face for %s", hfModelID)
+		return fmt.Errorf("no files downloaded from Hugging Face for %s (tried: %s). "+
+			"Check that the model exists at https://huggingface.co/%s and verify the correct namespace/name. "+
+			"Note: HuggingFace URLs are case-sensitive",
+			hfModelID, strings.Join(failedFiles, ", "), hfModelID)
 	}
 
 	// Build package
@@ -318,7 +352,111 @@ func (h *HuggingFaceAdapter) DownloadPackage(ctx context.Context, manifest *type
 }
 
 // getModelFiles fetches the list of files from Hugging Face API.
-func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) ([]string, error) {
+// It tries the original model ID first, then case variations if that fails.
+// Returns the files and the corrected model ID (in case a variation worked).
+func (h *HuggingFaceAdapter) getModelFiles(ctx context.Context, modelID string) ([]string, string, error) {
+	// Try original model ID first
+	files, err := h.fetchModelFiles(ctx, modelID)
+	if err == nil {
+		return files, modelID, nil
+	}
+
+	// Try case variations (HuggingFace URLs are case-sensitive)
+	// Common patterns: namespace is often title-case (e.g., "Ultralytics")
+	caseVariations := h.generateCaseVariations(modelID)
+	for _, variation := range caseVariations {
+		if variation == modelID {
+			continue // Already tried
+		}
+		files, err := h.fetchModelFiles(ctx, variation)
+		if err == nil {
+			fmt.Printf("✓ Found model at %s (tried: %s)\n", variation, modelID)
+			return files, variation, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("model not found: %s (also tried case variations)", modelID)
+}
+
+// generateCaseVariations generates common case variations for a model ID.
+func (h *HuggingFaceAdapter) generateCaseVariations(modelID string) []string {
+	parts := strings.SplitN(modelID, "/", 2)
+	if len(parts) != 2 {
+		return []string{modelID}
+	}
+
+	namespace, name := parts[0], parts[1]
+	variations := []string{}
+
+	// Generate namespace variations
+	namespaceVariations := []string{
+		toTitleCase(namespace),
+		strings.ToUpper(namespace),
+		strings.ToLower(namespace),
+	}
+
+	// Generate model name variations
+	// Common patterns: YOLOv8, Llama-2, GPT-J, etc.
+	nameVariations := []string{
+		name,
+		toTitleCase(name),
+		strings.ToUpper(name),
+	}
+
+	// For YOLO models, try extracting the base model name (yolov8n -> YOLOv8)
+	if strings.HasPrefix(strings.ToLower(name), "yolov") {
+		// Extract base name (yolov8n -> yolov8, yolov8s -> yolov8)
+		baseName := extractYOLOBaseName(name)
+		if baseName != "" && baseName != name {
+			nameVariations = append(nameVariations, baseName)
+		}
+	}
+
+	// Generate all combinations
+	seen := make(map[string]bool)
+	for _, ns := range namespaceVariations {
+		for _, n := range nameVariations {
+			v := fmt.Sprintf("%s/%s", ns, n)
+			if !seen[v] && v != modelID {
+				seen[v] = true
+				variations = append(variations, v)
+			}
+		}
+	}
+
+	return variations
+}
+
+// toTitleCase converts a string to title case (first letter uppercase).
+func toTitleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// extractYOLOBaseName extracts the base YOLO model name (e.g., "yolov8n" -> "YOLOv8").
+func extractYOLOBaseName(name string) string {
+	lower := strings.ToLower(name)
+
+	// Match patterns like yolov5n, yolov8n, yolov8s, yolov8m, yolov8l, yolov8x
+	// and convert to YOLOv5, YOLOv8, etc.
+	for _, version := range []string{"5", "6", "7", "8", "9", "10", "11"} {
+		prefix := "yolov" + version
+		if strings.HasPrefix(lower, prefix) {
+			// Check if there's a variant suffix (n, s, m, l, x)
+			remaining := lower[len(prefix):]
+			if len(remaining) > 0 && strings.ContainsAny(remaining[:1], "nsmlx") {
+				// Return the base model name with proper casing
+				return "YOLOv" + version
+			}
+		}
+	}
+	return ""
+}
+
+// fetchModelFiles makes the actual API call to fetch model files.
+func (h *HuggingFaceAdapter) fetchModelFiles(ctx context.Context, modelID string) ([]string, error) {
 	url := fmt.Sprintf("%s/api/models/%s", h.baseURL, modelID)
 
 	resp, err := h.httpClient.Get(ctx, url)
