@@ -1,0 +1,32 @@
+{
+  "id": "axon-v3.2.0-release",
+  "title": "Axon v3.2.0 - Format-Agnostic Model Installation",
+  "date": "2025-01-11",
+  "type": "release",
+  "featured": true,
+  "badge": "NEW RELEASE",
+  "summary": "Axon v3.2.0 introduces format-agnostic model installation with the new --format flag, case-insensitive model lookup, YOLO support, and multi-encoder ONNX conversion for CLIP and T5 models.",
+  "version": "v3.2.0",
+  "highlights": [
+    "New --format flag for controlling execution format (onnx, pytorch, tensorflow, auto)",
+    "Case-insensitive model lookup and YOLO model support",
+    "Multi-encoder ONNX support for CLIP, T5, and complex architectures",
+    "Format-agnostic installation - use models in their native format",
+    "Universal ONNX conversion with repository-specific strategies"
+  ],
+  "links": [
+    {
+      "text": "View Release",
+      "url": "https://github.com/mlOS-foundation/axon/releases/tag/v3.2.0",
+      "primary": true
+    },
+    {
+      "text": "Changelog",
+      "url": "https://github.com/mlOS-foundation/axon/blob/main/CHANGELOG.md"
+    },
+    {
+      "text": "Installation Guide",
+      "url": "https://github.com/mlOS-foundation/axon#installation"
+    }
+  ]
+}

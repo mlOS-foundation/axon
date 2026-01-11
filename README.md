@@ -80,20 +80,45 @@ axon update vision/resnet50
 axon uninstall vision/resnet50
 ```
 
-## 🚀 Universal ONNX Conversion (New!)
+## 🎯 Format-Agnostic Installation (v3.2.0+)
 
-Axon now features **universal ONNX conversion** with repository-specific strategies:
+Axon v3.2.0 introduces **format-agnostic model installation** - install and use models in their native format or convert to ONNX:
+
+```bash
+# Install with automatic format detection (default)
+axon install hf/bert-base-uncased@latest
+
+# Explicitly request ONNX conversion
+axon install hf/bert-base-uncased@latest --format onnx
+
+# Keep native PyTorch format (no conversion)
+axon install hf/bert-base-uncased@latest --format pytorch
+
+# Keep native TensorFlow format
+axon install tfhub/google/universal-sentence-encoder/4@latest --format tensorflow
+```
+
+### New in v3.2.0
+- **`--format` flag**: Control execution format (`onnx`, `pytorch`, `tensorflow`, `auto`)
+- **Case-insensitive lookup**: Find models regardless of case (e.g., `BERT-base-uncased`)
+- **YOLO support**: Install YOLO object detection models from Hugging Face
+- **Multi-encoder ONNX**: Support for CLIP, T5, and complex multi-encoder architectures
+
+## 🚀 Universal ONNX Conversion
+
+Axon features **universal ONNX conversion** with repository-specific strategies:
 
 ### Multi-Framework Support
-- **Hugging Face** 🤗: GPT-2, BERT, T5, RoBERTa, DistilBERT - multi-strategy conversion using `optimum`, `torch.onnx.export`, and `transformers`
-- **PyTorch Hub** 🔥: ResNet, VGG, AlexNet - supports TorchScript, PyTorch Hub, and torchvision models
-- **TensorFlow Hub** 🧠: SavedModel, Keras H5, TF Hub models - using `tf2onnx` converter
-- **ModelScope** 🎨: Multimodal models with automatic framework detection
+- **Hugging Face**: GPT-2, BERT, T5, RoBERTa, DistilBERT, YOLO - multi-strategy conversion using `optimum`, `torch.onnx.export`, and `transformers`
+- **PyTorch Hub**: ResNet, VGG, AlexNet - supports TorchScript, PyTorch Hub, and torchvision models
+- **TensorFlow Hub**: SavedModel, Keras H5, TF Hub models - using `tf2onnx` converter
+- **ModelScope**: Multimodal models with automatic framework detection
 
 ### Enhanced Conversion Features
-✅ **Smart Repository Routing**: Automatic converter selection based on model namespace  
-✅ **Multi-Strategy Fallbacks**: Tries multiple conversion methods for maximum compatibility  
-✅ **Complex Model Support**: Handles models with cache, tuples, and complex outputs  
+✅ **Smart Repository Routing**: Automatic converter selection based on model namespace
+✅ **Multi-Strategy Fallbacks**: Tries multiple conversion methods for maximum compatibility
+✅ **Complex Model Support**: Handles models with cache, tuples, and complex outputs
+✅ **Multi-Encoder Support**: CLIP, T5, and other multi-encoder architectures (v3.2.0+)
 ✅ **Optimized Docker Image**: Single multi-framework image for all conversions  
 
 ### Example: Seamless Conversion
