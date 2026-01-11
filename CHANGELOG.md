@@ -11,6 +11,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [3.2.0] - 2025-01-11
+
+### Added
+- **Case-Insensitive Model Lookup**: Hugging Face adapter now supports case-insensitive model name lookup and YOLO model support (#55)
+  - Models can be found regardless of case (e.g., `bert-base-uncased` or `BERT-BASE-UNCASED`)
+  - Added support for YOLO object detection models
+- **Format Flag for Target Execution**: New `--format` flag for controlling target execution format (#51)
+  - Allows users to specify preferred execution format during installation
+  - Supports `onnx`, `pytorch`, `tensorflow`, and `auto` options
+- **Execution Files in Manifest**: Added `execution_files` field to manifest for explicit model paths (#50)
+  - Enables precise specification of model files for execution
+  - Improves compatibility with complex model architectures
+- **Format-Agnostic Model Installation**: Support for installing models in their native format (#47)
+  - Models can be installed without ONNX conversion when preferred
+  - Respects user format preferences via `--format` flag
+- **Multi-Encoder ONNX Support**: Support for CLIP, T5, and other multi-encoder architectures (#45)
+  - Automatic detection and conversion of vision and text encoders
+  - Proper handling of multi-model architectures
+- **Generic Vision Model Conversion**: Universal vision model ONNX conversion with two-stage Docker build (#44)
+  - Supports a wider range of vision models out of the box
+  - Optimized Docker image with pre-built conversion tools
+- **Universal ONNX Conversion**: Repository-specific conversion strategies for all supported repositories (#37)
+  - Intelligent conversion based on model source repository
+  - Fallback strategies for edge cases
+- **Automated News Sync**: Website now automatically syncs news content (#54)
+
+### Fixed
+- **Docker ONNX Converter**: Use absolute container paths to prevent path resolution issues (#52)
+- **Manifest YAML Format**: Save manifests in YAML format for proper parsing by downstream tools
+- **Format Detection**: Improved format detection verification and ONNX validation (#48)
+- **Multi-Encoder ONNX Discovery**: Find ONNX files in `onnx/` subdirectory for multi-encoder models (#46)
+- **Release Tag Format**: Remove double 'v' prefix in release tag name for workflow_dispatch
+- **Disk Space Management**: Aggressive cleanup to prevent OCI artifact save failures
+- **Docker Image Optimization**: Optimized Docker image saving to prevent disk space issues
+- **Base Image Verification**: Fix optimum version check in base image verification
+- **HuggingFace Model ID**: Preserve org prefix in model ID for converter (#41)
+- **Nested Namespace Paths**: Handle nested namespace model IDs in temp file paths (#39)
+- **CI Workflow**: Remove redundant docker converter dispatch trigger
+
+### Changed
+- **Version Bump**: Major version bump to 3.x for format-agnostic architecture
+- **Docker Build**: Two-stage build process for faster, more reliable builds
+- **Converter Image**: Optimized to use cached base image for performance
+
+### Documentation
+- Added comprehensive converter image documentation
+- Added Docker build optimization documentation
+- Added progress indicators for OCI artifact saving
+
 ## [2.1.0] - 2024-11-19
 
 ### Added
