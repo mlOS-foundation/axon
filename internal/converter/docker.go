@@ -66,11 +66,12 @@ func getDockerImageForRepository(namespace string) string {
 
 	// Repository-to-image mapping
 	// Can be extended for repository-specific images
+	defaultImage := DefaultConverterImage()
 	repositoryImageMap := map[string]string{
-		"hf":      DefaultConverterImage, // Hugging Face (use default for now)
-		"pytorch": DefaultConverterImage, // PyTorch Hub
-		"tfhub":   DefaultConverterImage, // TensorFlow Hub
-		"ms":      DefaultConverterImage, // ModelScope
+		"hf":      defaultImage, // Hugging Face (use default for now)
+		"pytorch": defaultImage, // PyTorch Hub
+		"tfhub":   defaultImage, // TensorFlow Hub
+		"ms":      defaultImage, // ModelScope
 	}
 
 	if image, ok := repositoryImageMap[namespace]; ok {
@@ -78,7 +79,7 @@ func getDockerImageForRepository(namespace string) string {
 	}
 
 	// Default to multi-framework image
-	return DefaultConverterImage
+	return defaultImage
 }
 
 // getConversionScript returns the conversion script name based on repository namespace and framework.
