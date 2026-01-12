@@ -22,10 +22,12 @@ ARG VERSION=3.3.0
 # =============================================================================
 # Cache bust using BUILD_DATE to ensure this layer always runs
 ARG CACHE_BUST=${BUILD_DATE}
-# Install headless OpenCV for Docker (no GUI dependencies) and ultralytics
+# Install ultralytics first, then REPLACE opencv with headless version (for Docker)
+# ultralytics pulls in opencv-python, but we need headless for Docker containers
 RUN echo "Build date: ${CACHE_BUST}" && \
+    pip install --no-cache-dir --upgrade ultralytics>=8.0.0 && \
     pip uninstall -y opencv-python opencv-contrib-python 2>/dev/null || true && \
-    pip install --no-cache-dir --upgrade opencv-python-headless>=4.8.0 ultralytics>=8.0.0
+    pip install --no-cache-dir opencv-python-headless>=4.8.0
 
 # =============================================================================
 # Conversion Scripts
