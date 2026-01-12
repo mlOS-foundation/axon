@@ -771,44 +771,177 @@ def try_torch_jit_trace(model, dummy_input, output_path, input_names, dynamic_ax
         return False
 
 
+def is_ultralytics_yolo_model(model_path, hf_model_id):
+    """Check if this is an Ultralytics YOLO model."""
+    hf_id_lower = hf_model_id.lower()
+
+    # Check model ID for YOLO indicators
+    if 'ultralytics' in hf_id_lower:
+        return True
+    if any(yolo in hf_id_lower for yolo in ['yolov5', 'yolov8', 'yolov9', 'yolov10', 'yolo-nas']):
+        return True
+
+    # Check for YOLO-specific files in model directory
+    if os.path.isdir(model_path):
+        for filename in os.listdir(model_path):
+            fname_lower = filename.lower()
+            # YOLO models typically have .pt files with yolo in the name
+            if 'yolo' in fname_lower and fname_lower.endswith('.pt'):
+                return True
+            # Or just yolov8n.pt, yolov5s.pt etc
+            if fname_lower.startswith('yolov') and fname_lower.endswith('.pt'):
+                return True
+
+    return False
+
+
+def find_yolo_pt_file(model_path, hf_model_id):
+    """Find the YOLO .pt file in the model directory."""
+    if not os.path.isdir(model_path):
+        return None
+
+    # Extract model name from ID (e.g., "ultralytics/yolov8n" -> "yolov8n")
+    model_name = hf_model_id.split('/')[-1].lower()
+
+    # Priority order for finding the .pt file
+    candidates = [
+        f'{model_name}.pt',           # yolov8n.pt
+        'best.pt',                     # Common YOLO export name
+        'weights.pt',                  # Alternative name
+        'model.pt',                    # Generic name
+        'pytorch_model.bin',           # HuggingFace format
+    ]
+
+    # First try exact matches
+    for candidate in candidates:
+        pt_path = os.path.join(model_path, candidate)
+        if os.path.exists(pt_path):
+            return pt_path
+
+    # Then try any .pt file with yolo in the name
+    for filename in os.listdir(model_path):
+        if filename.endswith('.pt') and 'yolo' in filename.lower():
+            return os.path.join(model_path, filename)
+
+    # Finally try any .pt file
+    for filename in os.listdir(model_path):
+        if filename.endswith('.pt'):
+            return os.path.join(model_path, filename)
+
+    return None
+
+
+def try_ultralytics_export(model_path, output_path, hf_model_id):
+    """
+    Export Ultralytics YOLO model to ONNX using the ultralytics package.
+    This is the only reliable way to convert YOLO models.
+    """
+    try:
+        print('🔄 Trying Ultralytics YOLO export...')
+
+        # Find the .pt file
+        pt_file = find_yolo_pt_file(model_path, hf_model_id)
+
+        if pt_file is None:
+            # Try downloading directly using ultralytics
+            model_name = hf_model_id.split('/')[-1].lower()
+            if not model_name.endswith('.pt'):
+                model_name = f'{model_name}.pt'
+            pt_file = model_name
+            print(f'   No local .pt file found, will try downloading: {pt_file}')
+        else:
+            print(f'   Found YOLO weights: {pt_file}')
+
+        # Import ultralytics
+        try:
+            from ultralytics import YOLO
+        except ImportError:
+            print('⚠️  ultralytics package not installed')
+            print('   Install with: pip install ultralytics')
+            return False
+
+        # Load the YOLO model
+        print(f'   Loading YOLO model from: {pt_file}')
+        model = YOLO(pt_file)
+
+        # Export to ONNX
+        # The export() method returns the path to the exported file
+        print(f'   Exporting to ONNX format...')
+        export_path = model.export(
+            format='onnx',
+            imgsz=640,           # Standard YOLO input size
+            simplify=True,       # Simplify ONNX graph
+            opset=14,            # ONNX opset version
+            dynamic=False,       # Fixed input size for better compatibility
+        )
+
+        # Move to expected output path
+        if export_path and os.path.exists(export_path):
+            if export_path != output_path:
+                import shutil
+                shutil.move(export_path, output_path)
+            print(f'✅ SUCCESS (Ultralytics YOLO export)')
+            print(f'   Saved to: {output_path}')
+            return True
+
+        return False
+
+    except Exception as e:
+        print(f'⚠️  Ultralytics export failed: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def convert_huggingface_to_onnx(model_path, output_path, axon_model_id):
     """Convert a Hugging Face model to ONNX using multiple strategies."""
     try:
         import torch
-        
+
         # Create output directory
         os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
-        
+
         # Extract HF model ID
         hf_model_id = extract_hf_model_id(axon_model_id)
         print(f'📦 Converting model: {hf_model_id} (Axon ID: {axon_model_id})')
-        
+
+        # Check if this is an Ultralytics YOLO model (needs special handling)
+        if is_ultralytics_yolo_model(model_path, hf_model_id):
+            print('   Detected Ultralytics YOLO model')
+            if try_ultralytics_export(model_path, output_path, hf_model_id):
+                return True
+            # If ultralytics export failed, don't try other strategies
+            # (they won't work for YOLO models)
+            print('❌ ERROR: YOLO conversion failed. Ensure ultralytics is installed:')
+            print('   pip install ultralytics')
+            return False
+
         # Detect task first
         detected_task = detect_task_from_config(model_path)
         print(f'   Detected task: {detected_task}')
-        
+
         # Strategy 1: Try Optimum first (doesn't need model loading)
         if try_optimum_export(model_path, output_path, hf_model_id, task=detected_task):
             return True
-        
+
         # Load model for other strategies
         print('📥 Loading model with transformers...')
         model, processor, task = load_model_and_tokenizer(model_path, hf_model_id, detected_task)
         model.eval()
-        
+
         # Create appropriate dummy input
         dummy_input, input_names, dynamic_axes = create_dummy_input(model, task, processor)
-        
+
         # Try remaining strategies in order
         strategies = [
             lambda: try_torch_export(model, dummy_input, output_path, input_names, dynamic_axes, task),
             lambda: try_torch_jit_trace(model, dummy_input, output_path, input_names, dynamic_axes),
         ]
-        
+
         for strategy in strategies:
             if strategy():
                 return True
-        
+
         # All strategies failed
         print('❌ ERROR: All conversion strategies failed')
         return False
