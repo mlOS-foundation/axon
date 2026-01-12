@@ -18,6 +18,11 @@ ARG BUILD_DATE
 ARG VERSION=3.3.0
 
 # =============================================================================
+# Ensure ultralytics is installed (in case base image cache is stale)
+# =============================================================================
+RUN pip install --no-cache-dir ultralytics>=8.0.0
+
+# =============================================================================
 # Conversion Scripts
 # =============================================================================
 # This is the only thing that changes between converter releases
