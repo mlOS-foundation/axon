@@ -24,7 +24,7 @@ build: ## Build the binary
 	@mkdir -p $(BUILD_DIR)
 	@GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	go build -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=local" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/axon
+	go build -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=local -X github.com/mlOS-foundation/axon/internal/converter.ConverterVersion=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/axon
 	@echo "✓ Built $(BUILD_DIR)/$(BINARY_NAME)"
 
 test: ## Run tests
@@ -101,7 +101,7 @@ install: build ## Install to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
 	@GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
 	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	go install -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=installed" ./cmd/axon
+	go install -ldflags "-X main.version=$(VERSION) -X main.gitCommit=$$GIT_COMMIT -X main.buildDate=$$BUILD_DATE -X main.buildType=installed -X github.com/mlOS-foundation/axon/internal/converter.ConverterVersion=$(VERSION)" ./cmd/axon
 	@echo "✓ Installed $(BINARY_NAME)"
 
 build-local: build ## Build and install to ~/.local/bin (no sudo required)

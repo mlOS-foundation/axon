@@ -17,8 +17,14 @@ type DockerConverter struct {
 	cacheDir  string
 }
 
-// DefaultConverterImage is the default Docker image for ONNX conversion.
-const DefaultConverterImage = "ghcr.io/mlos-foundation/axon-converter:latest"
+// ConverterVersion is set via ldflags during build to match the Axon version.
+// This ensures the converter image is version-pinned to avoid cache issues.
+var ConverterVersion = "latest"
+
+// DefaultConverterImage returns the versioned Docker image for ONNX conversion.
+func DefaultConverterImage() string {
+	return fmt.Sprintf("ghcr.io/mlos-foundation/axon-converter:%s", ConverterVersion)
+}
 
 // NewDockerConverter creates a new Docker-based converter.
 func NewDockerConverter() *DockerConverter {
@@ -31,7 +37,7 @@ func NewDockerConverter() *DockerConverter {
 	// Allow override via environment variable for testing/development
 	imageName := os.Getenv("AXON_CONVERTER_IMAGE")
 	if imageName == "" {
-		imageName = DefaultConverterImage
+		imageName = DefaultConverterImage()
 	}
 
 	return &DockerConverter{
