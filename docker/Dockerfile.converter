@@ -20,7 +20,9 @@ ARG VERSION=3.3.0
 # =============================================================================
 # Ensure ultralytics is installed (in case base image cache is stale)
 # =============================================================================
-RUN pip install --no-cache-dir ultralytics>=8.0.0
+# Cache bust using BUILD_DATE to ensure this layer always runs
+ARG CACHE_BUST=${BUILD_DATE}
+RUN echo "Build date: ${CACHE_BUST}" && pip install --no-cache-dir --upgrade ultralytics>=8.0.0
 
 # =============================================================================
 # Conversion Scripts
