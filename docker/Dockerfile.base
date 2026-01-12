@@ -11,7 +11,7 @@ FROM python:3.11-slim
 
 # Build arguments for versioning
 ARG BUILD_DATE
-ARG VERSION=1.0.0
+ARG VERSION=1.1.0
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -47,6 +47,10 @@ RUN pip install --no-cache-dir \
     "optimum[exporters,onnxruntime]>=1.16.0" \
     accelerate>=0.20.0 \
     safetensors>=0.4.0
+
+# Ultralytics YOLO support (for YOLOv5/v8/v9/v10 model conversion)
+RUN pip install --no-cache-dir \
+    ultralytics>=8.0.0
 
 # ModelScope support
 RUN pip install --no-cache-dir \

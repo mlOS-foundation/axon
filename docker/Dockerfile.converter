@@ -15,7 +15,7 @@ FROM ${BASE_IMAGE}
 
 # Build arguments
 ARG BUILD_DATE
-ARG VERSION=3.0.3
+ARG VERSION=3.3.0
 
 # =============================================================================
 # Conversion Scripts

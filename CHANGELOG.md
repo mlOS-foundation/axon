@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced caching and optimization
 - Model versioning and A/B testing
 
+## [3.3.0] - 2025-01-12
+
+### Added
+- **Ultralytics YOLO Model Support**: Native conversion support for YOLOv5, YOLOv8, YOLOv9, and YOLOv10 models (#56)
+  - Added `ultralytics>=8.0.0` package to Docker base image
+  - New `is_ultralytics_yolo_model()` detection function in converter
+  - New `find_yolo_pt_file()` to locate YOLO weights in model directories
+  - New `try_ultralytics_export()` using native Ultralytics export API
+  - Automatic detection of YOLO models by model ID or file patterns
+  - Proper ONNX export with correct input sizes (640x640), opset 14, and simplification
+  - Support for downloading YOLO weights directly if not found locally
+
+### Fixed
+- **YOLO Model Conversion**: Fixed ONNX conversion for Ultralytics YOLO models (#56)
+  - Standard HuggingFace transformers cannot load YOLO models
+  - Uses `ultralytics.YOLO` class for proper model loading
+  - Uses native `model.export(format='onnx')` for reliable conversion
+  - Graceful error messages when ultralytics package is missing
+
+### Changed
+- **Docker Base Image**: Updated to v1.1.0 with ultralytics support
+- **Docker Converter Image**: Updated to v3.3.0
+
 ## [3.2.0] - 2025-01-11
 
 ### Added
