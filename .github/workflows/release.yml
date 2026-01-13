@@ -48,7 +48,7 @@ jobs:
           VERSION: ${{ steps.get_version.outputs.version }}
         run: |
           mkdir -p build
-          go build -ldflags "-X main.version=v${VERSION}" -o build/axon ./cmd/axon
+          go build -ldflags "-X main.version=v${VERSION} -X github.com/mlOS-foundation/axon/internal/converter.ConverterVersion=${VERSION}" -o build/axon ./cmd/axon
           chmod +x build/axon
 
       - name: Create archive
