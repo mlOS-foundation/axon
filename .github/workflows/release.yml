@@ -234,7 +234,12 @@ jobs:
           draft: false
           prerelease: false
 
-      # Note: Docker converter workflow is automatically triggered by the
-      # "release: published" event in docker-converter.yml when the release
-      # is created above. No manual dispatch needed.
+      # Trigger Docker converter build after release is published
+      # Note: release: published event doesn't trigger when using GITHUB_TOKEN
+      # so we explicitly dispatch the workflow
+      - name: Trigger Docker Converter Build
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: build-docker-image
+          client-payload: '{"tag": "v${{ steps.get_version.outputs.version }}"}'
 
